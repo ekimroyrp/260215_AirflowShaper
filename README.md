@@ -1,17 +1,43 @@
 # 260215_AirflowShaper
 
-260215_AirflowShaper is the base repository for building and iterating on an airflow-shaping project, with an initial structure focused on setting up version control and a clear workflow for future implementation.
+260215_AirflowShaper is a Three.js airflow particle simulator prototype with a transformable emitter plane, editable obstacle planes, and a real-time hybrid flow model (base flow + obstacle deflection + turbulence wake) rendered with particle trails.
 
 ## Features
-- Repository initialized for `main` branch development
-- Guardrails documented for collaboration and git workflow
-- Starter documentation ready for project expansion
+- Vite + TypeScript + Three.js app scaffold.
+- Emitter plane with transform gizmo support (move/rotate/scale).
+- Adjustable emitter vertex density (`Density X`, `Density Y`) driving spawn vertices.
+- Continuous particle respawn from emitter plane vertices.
+- Particle trails rendered in real time.
+- Add unlimited obstacle planes via `Add Plane`.
+- Obstacle interaction with slide and wake turbulence behavior.
+- Play, pause, restart controls and flow speed/turbulence sliders.
+- Orbit/transform interaction model aligned with `260208_SoapFilm`.
+- Vitest suite for emitter, flow field, playback, obstacle interaction, and trail reset logic.
 
 ## Getting Started
-1. Clone the repository.
-2. Open the project folder in your editor or terminal.
-3. Add project source files and run your chosen tooling.
+1. `npm install`
+2. `npm run dev`
+3. Open the local Vite URL shown in terminal (default `http://127.0.0.1:6215`)
+4. Optional checks:
+   - `npm run test`
+   - `npm run build`
 
 ## Controls
-- No runtime controls are implemented yet.
-- Workflow control is handled through the guardrails in `Guardrails.txt`.
+- UI Panel:
+  - `Play`
+  - `Pause`
+  - `Restart`
+  - `Flow Speed`
+  - `Turbulence`
+  - `Density X`
+  - `Density Y`
+  - `Add Plane`
+- Mouse:
+  - Left-click selects emitter/obstacle plane
+  - Drag transform gizmo handles to move/rotate/scale selected plane
+  - Middle mouse pans camera
+  - Right mouse rotates camera
+  - Mouse wheel zooms
+- Keyboard:
+  - `Delete` removes selected obstacle plane
+  - `Escape` clears selection

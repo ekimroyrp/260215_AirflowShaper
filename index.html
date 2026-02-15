@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>260215_AirflowShaper</title>
+  </head>
+  <body>
+    <div id="ui-panel">
+      <div id="ui-handle">
+        <button
+          type="button"
+          id="collapse-toggle"
+          class="collapse-button"
+          aria-label="Collapse controls"
+          aria-expanded="true"
+        >
+          <span class="collapse-icon">v</span>
+        </button>
+      </div>
+      <div class="ui-body">
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Simulation</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <button type="button" id="play-sim" class="pill-button">Play</button>
+            </div>
+            <div class="control">
+              <button type="button" id="pause-sim" class="pill-button">Pause</button>
+            </div>
+            <div class="control">
+              <button type="button" id="restart-sim" class="pill-button">Restart</button>
+            </div>
+            <label class="control">
+              <div class="control-row">
+                <span>Flow Speed</span>
+                <span id="flow-speed-value">1.00</span>
+              </div>
+              <input type="range" id="flow-speed" min="0.1" max="4" step="0.01" value="1" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Turbulence</span>
+                <span id="turbulence-value">0.65</span>
+              </div>
+              <input type="range" id="turbulence-strength" min="0" max="2" step="0.01" value="0.65" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Emitter</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <label class="control">
+              <div class="control-row">
+                <span>Density X</span>
+                <span id="density-x-value">20</span>
+              </div>
+              <input type="range" id="density-x" min="1" max="70" step="1" value="20" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Density Y</span>
+                <span id="density-y-value">12</span>
+              </div>
+              <input type="range" id="density-y" min="1" max="70" step="1" value="12" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Obstacles</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <button type="button" id="add-plane" class="pill-button">Add Plane</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="ui-handle-bottom"></div>
+    </div>
+    <canvas id="app-canvas"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
