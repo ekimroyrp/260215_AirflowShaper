@@ -41,3 +41,11 @@
 - Keyboard:
   - `Delete` removes selected obstacle plane
   - `Escape` clears selection
+
+## V1 Validation Checklist
+- Change `Density X`/`Density Y` and confirm emitter vertex count and stream density change.
+- Rotate emitter and confirm flow direction follows emitter normal.
+- Use `Play`, `Pause`, and `Restart` to control simulation state.
+- Add multiple obstacle planes and verify particles bend/slide around them.
+- Place obstacles downstream and verify wake turbulence appears behind them.
+- Use `Restart` and verify old trails clear and new trails start from emitter.

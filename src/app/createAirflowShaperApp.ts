@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   Color,
   DirectionalLight,
+  DoubleSide,
   EdgesGeometry,
   LineBasicMaterial,
   LineSegments,
@@ -30,6 +31,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   buildEmitterLocalVertices,
   clampDensity,
+  computeSpawnRateFromVertexCount,
   computeEmitterWorldNormal,
   EMITTER_HEIGHT,
   EMITTER_WIDTH,
@@ -215,10 +217,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.setupEnvironment();
 
     this.uiElements = this.resolveUiElements();
-    this.setupUi();
-
     this.createEmitterEntity();
-    this.selectPlane(this.emitterId);
 
     this.particleSystem = new ParticleTrailSystem({
       maxParticles: MAX_PARTICLES,
@@ -228,6 +227,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       particleSize: 0.03,
     });
     this.particleSystem.attach(this.scene);
+
+    this.setupUi();
+    this.selectPlane(this.emitterId);
 
     this.updateSpawnRateFromDensity();
     this.restart();
@@ -382,7 +384,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       metalness: 0.05,
       transparent: true,
       opacity: kind === 'emitter' ? 0.3 : 0.38,
-      side: 2,
+      side: DoubleSide,
     });
 
     const mesh = new Mesh(geometry, material);
@@ -862,7 +864,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
 
   private updateSpawnRateFromDensity(): void {
     const vertexCount = getEmitterVertexCount(this.emitterConfig.densityX, this.emitterConfig.densityY);
-    this.emitterConfig.spawnRate = Math.max(40, Math.min(this.particleSystem.maxParticles * 6, vertexCount * 8));
+    this.emitterConfig.spawnRate = computeSpawnRateFromVertexCount(vertexCount, this.particleSystem.maxParticles);
   }
 
   private updateAllWorldMatrices(): void {

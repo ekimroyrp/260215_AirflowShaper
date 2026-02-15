@@ -14,6 +14,12 @@ export function getEmitterVertexCount(densityX: number, densityY: number): numbe
   return (clampDensity(densityX) + 1) * (clampDensity(densityY) + 1);
 }
 
+export function computeSpawnRateFromVertexCount(vertexCount: number, maxParticles: number): number {
+  const safeVertexCount = Math.max(1, Math.floor(vertexCount));
+  const safeMaxParticles = Math.max(1, Math.floor(maxParticles));
+  return Math.max(40, Math.min(safeMaxParticles * 6, safeVertexCount * 8));
+}
+
 export function buildEmitterLocalVertices(
   densityX: number,
   densityY: number,
