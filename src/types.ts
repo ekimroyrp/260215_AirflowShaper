@@ -16,6 +16,7 @@ export interface FlowConfig {
   drag: number;
   turbulenceStrength: number;
   turbulenceScale: number;
+  recoveryLength: number;
   obstacleInfluenceRadius: number;
   wakeStrength: number;
 }

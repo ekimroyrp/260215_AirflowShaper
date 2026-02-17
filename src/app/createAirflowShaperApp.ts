@@ -64,6 +64,7 @@ interface UiState {
   flowSpeed: number;
   flowLength: number;
   turbulence: number;
+  recoveryLength: number;
   impactBuffer: number;
 }
 
@@ -82,6 +83,8 @@ interface UiElements {
   flowLengthValue: HTMLSpanElement;
   turbulenceRange: HTMLInputElement;
   turbulenceValue: HTMLSpanElement;
+  recoveryLengthRange: HTMLInputElement;
+  recoveryLengthValue: HTMLSpanElement;
   impactBufferRange: HTMLInputElement;
   impactBufferValue: HTMLSpanElement;
   densityXRange: HTMLInputElement;
@@ -140,6 +143,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     drag: 0.8,
     turbulenceStrength: 0.65,
     turbulenceScale: 0.35,
+    recoveryLength: 4,
     obstacleInfluenceRadius: 0.18,
     wakeStrength: 1.05,
   };
@@ -151,6 +155,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     flowSpeed: 1,
     flowLength: 1,
     turbulence: 0.65,
+    recoveryLength: 4,
     impactBuffer: 0.18,
   };
 
@@ -572,6 +577,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const flowLengthValue = document.getElementById('flow-length-value');
     const turbulenceRange = document.getElementById('turbulence-strength');
     const turbulenceValue = document.getElementById('turbulence-value');
+    const recoveryLengthRange = document.getElementById('recovery-length');
+    const recoveryLengthValue = document.getElementById('recovery-length-value');
     const impactBufferRange = document.getElementById('impact-buffer');
     const impactBufferValue = document.getElementById('impact-buffer-value');
     const densityXRange = document.getElementById('density-x');
@@ -594,6 +601,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       !(flowLengthValue instanceof HTMLSpanElement) ||
       !(turbulenceRange instanceof HTMLInputElement) ||
       !(turbulenceValue instanceof HTMLSpanElement) ||
+      !(recoveryLengthRange instanceof HTMLInputElement) ||
+      !(recoveryLengthValue instanceof HTMLSpanElement) ||
       !(impactBufferRange instanceof HTMLInputElement) ||
       !(impactBufferValue instanceof HTMLSpanElement) ||
       !(densityXRange instanceof HTMLInputElement) ||
@@ -619,6 +628,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       flowLengthValue,
       turbulenceRange,
       turbulenceValue,
+      recoveryLengthRange,
+      recoveryLengthValue,
       impactBufferRange,
       impactBufferValue,
       densityXRange,
@@ -665,6 +676,19 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
         this.flowConfig.turbulenceStrength = value;
       },
       this.uiState.turbulence,
+    );
+
+    this.bindRangeControl(
+      {
+        input: this.uiElements.recoveryLengthRange,
+        value: this.uiElements.recoveryLengthValue,
+        format: (value) => value.toFixed(2),
+      },
+      (value) => {
+        this.uiState.recoveryLength = value;
+        this.flowConfig.recoveryLength = value;
+      },
+      this.uiState.recoveryLength,
     );
 
     this.bindRangeControl(
@@ -918,7 +942,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   }
 
   private getEffectiveSpawnRate(): number {
-    const lengthScale = Math.max(0.35, this.uiState.flowLength);
+    const lengthScale = Math.max(0.1, this.uiState.flowLength);
     const rate = this.emitterConfig.spawnRate / lengthScale;
     return Math.max(8, Math.min(this.particleSystem.maxParticles * 8, rate));
   }
@@ -1038,8 +1062,11 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     }
 
     const turbulenceDamping = 1 - Math.min(0.8, this.flowConfig.turbulenceStrength * 0.28);
-    const recoveryGain = 1.05 * turbulenceDamping;
-    this.velocityScratch.addScaledVector(this.steeringScratch, recoveryGain * dt);
+    const recoveryDistance = Math.max(0.1, this.flowConfig.recoveryLength);
+    const forwardSpeed = Math.max(0.2, Math.abs(this.velocityScratch.dot(this.laneDirectionScratch)));
+    const recoveryRate = (forwardSpeed / recoveryDistance) * 1.2 * turbulenceDamping;
+    const recoveryStep = Math.min(0.35, recoveryRate * dt);
+    this.velocityScratch.addScaledVector(this.steeringScratch, recoveryStep);
   }
 
   private simulate(dt: number): void {

@@ -11,7 +11,7 @@
 - Add unlimited obstacle planes via `Add Plane`.
 - Obstacle interaction with slide and wake turbulence behavior.
 - Downstream lane recovery that returns particles toward their unobstructed streamlines after obstacle interaction.
-- Play, pause, restart controls and flow speed/flow length/turbulence/impact-buffer sliders.
+- Play, pause, restart controls and flow speed/flow length/turbulence/recovery-length/impact-buffer sliders.
 - Orbit/transform interaction model aligned with `260208_SoapFilm`.
 - Vitest suite for emitter, flow field, playback, obstacle interaction, and trail reset logic.
 
@@ -31,6 +31,7 @@
   - `Flow Speed`
   - `Flow Length`
   - `Turbulence`
+  - `Recovery Length`
   - `Impact Buffer`
   - `Density X`
   - `Density Y`
