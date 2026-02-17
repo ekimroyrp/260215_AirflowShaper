@@ -110,6 +110,9 @@ const SCALE_EPSILON = 1e-4;
 const ENVIRONMENT_BLUR_SIGMA = 1.25;
 const BACK_SCALE_HANDLE_OFFSET = 0.4;
 const TRANSLATE_ARROW_HEAD_SCALE = 2 / 3;
+const TRANSLATE_PICKER_HIT_SCALE = 0.58;
+const ROTATE_PICKER_HIT_SCALE = 0.88;
+const SCALE_PICKER_HIT_SCALE = 0.58;
 const EMITTER_BASE_COLOR = 0x1b7ea5;
 const EMITTER_SELECTED_COLOR = 0x56ecff;
 const OBSTACLE_BASE_COLOR = 0x5f738a;
@@ -1205,6 +1208,11 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     if (mode === 'scale') {
       this.pushBackScaleHandles(control, BACK_SCALE_HANDLE_OFFSET);
     }
+    this.tightenTransformPickerHitAreas(
+      control,
+      mode,
+      mode === 'rotate' ? ROTATE_PICKER_HIT_SCALE : mode === 'scale' ? SCALE_PICKER_HIT_SCALE : TRANSLATE_PICKER_HIT_SCALE,
+    );
     this.scene.add(helper);
     return { control, helper };
   }
@@ -1473,6 +1481,46 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
           pickerGroup.remove(child);
         }
       }
+    }
+  }
+
+  private tightenTransformPickerHitAreas(
+    control: TransformControls,
+    mode: 'translate' | 'rotate' | 'scale',
+    scaleFactor: number,
+  ): void {
+    const internal = control as unknown as {
+      _gizmo?: {
+        picker?: Record<string, Object3D>;
+      };
+    };
+
+    const pickerGroup = internal._gizmo?.picker?.[mode];
+    if (!pickerGroup) {
+      return;
+    }
+
+    const scaledGeometries = new Set<BufferGeometry>();
+    for (const child of pickerGroup.children) {
+      const meshLike = child as Object3D & { geometry?: BufferGeometry };
+      const geometry = meshLike.geometry;
+      if (!geometry || scaledGeometries.has(geometry)) {
+        continue;
+      }
+
+      geometry.computeBoundingBox();
+      const boundingBox = geometry.boundingBox;
+      if (!boundingBox) {
+        continue;
+      }
+
+      const center = boundingBox.getCenter(new Vector3());
+      geometry.translate(-center.x, -center.y, -center.z);
+      geometry.scale(scaleFactor, scaleFactor, scaleFactor);
+      geometry.translate(center.x, center.y, center.z);
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      scaledGeometries.add(geometry);
     }
   }
 }
