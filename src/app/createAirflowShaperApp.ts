@@ -117,9 +117,11 @@ const TRANSLATE_ARROW_HEAD_SCALE = 2 / 3;
 const TRANSLATE_PICKER_HIT_SCALE = 0.58;
 const ROTATE_PICKER_HIT_SCALE = 0.88;
 const SCALE_PICKER_HIT_SCALE = 0.58;
-const DEFAULT_PATH_COLOR = '#7ee9ff';
+const DEFAULT_PATH_COLOR = '#1100ff';
 const DEFAULT_OBSTRUCTED_COLOR = '#ff8552';
 const OFF_PATH_DISTANCE_FOR_MAX_COLOR = 0.9;
+const FLOW_LENGTH_MIN = 0.1;
+const FLOW_LENGTH_LIFETIME_EXPONENT = 0.5;
 const EMITTER_BASE_COLOR = 0x1b7ea5;
 const EMITTER_SELECTED_COLOR = 0x56ecff;
 const OBSTACLE_BASE_COLOR = 0x5f738a;
@@ -151,24 +153,24 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly flowConfig: FlowConfig = {
     timeScale: 1,
     drag: 0.8,
-    turbulenceStrength: 0.65,
+    turbulenceStrength: 0,
     turbulenceScale: 0.35,
-    recoveryLength: 4,
-    obstacleInfluenceRadius: 0.18,
+    recoveryLength: 2,
+    obstacleInfluenceRadius: 0.05,
     wakeStrength: 1.05,
   };
 
-  private readonly playbackState: PlaybackState = createPlaybackState(1);
+  private readonly playbackState: PlaybackState = createPlaybackState(5);
   private readonly uiState: UiState = {
     densityX: 20,
     densityY: 12,
-    flowSpeed: 1,
-    flowLength: 1,
+    flowSpeed: 5,
+    flowLength: 6,
     pathColor: DEFAULT_PATH_COLOR,
     obstructedColor: DEFAULT_OBSTRUCTED_COLOR,
-    turbulence: 0.65,
-    recoveryLength: 4,
-    impactBuffer: 0.18,
+    turbulence: 0,
+    recoveryLength: 2,
+    impactBuffer: 0.05,
   };
 
   private readonly particleSystem: ParticleTrailSystem;
@@ -188,6 +190,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly emitterUp = new Vector3(0, 1, 0);
   private readonly particleLaneOrigins = new Float32Array(MAX_PARTICLES * 3);
   private readonly particleLaneDirections = new Float32Array(MAX_PARTICLES * 3);
+  private readonly particleOffPathAmounts = new Float32Array(MAX_PARTICLES);
 
   private readonly quaternionScratch = new Quaternion();
   private readonly positionScratch = new Vector3();
@@ -205,6 +208,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private environmentRenderTarget: WebGLRenderTarget | null = null;
   private isTransformDragging = false;
   private isUsingTransformControls = false;
+  private pendingTrailGradientRecolor = false;
   private spawnAccumulator = 0;
   private spawnParticleCursor = 0;
   private spawnVertexCursor = 0;
@@ -313,6 +317,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   restart(): void {
     restartPlayback(this.playbackState);
     this.simTime = 0;
+    this.pendingTrailGradientRecolor = false;
     this.spawnAccumulator = 0;
     this.spawnParticleCursor = 0;
     this.spawnVertexCursor = 0;
@@ -693,13 +698,13 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.addDomListener(this.uiElements.pathColorInput, 'input', () => {
       this.uiState.pathColor = this.uiElements.pathColorInput.value;
       this.syncParticleGradientEndpoints();
-      this.recolorParticlesToCurrentDeviation();
+      this.pendingTrailGradientRecolor = true;
     });
 
     this.addDomListener(this.uiElements.obstructedColorInput, 'input', () => {
       this.uiState.obstructedColor = this.uiElements.obstructedColorInput.value;
       this.syncParticleGradientEndpoints();
-      this.recolorParticlesToCurrentDeviation();
+      this.pendingTrailGradientRecolor = true;
     });
 
     this.bindRangeControl(
@@ -979,7 +984,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   }
 
   private getEffectiveSpawnRate(): number {
-    const lengthScale = Math.max(0.1, this.uiState.flowLength);
+    const lengthScale = Math.max(FLOW_LENGTH_MIN, this.uiState.flowLength);
     const rate = this.emitterConfig.spawnRate / lengthScale;
     return Math.max(8, Math.min(this.particleSystem.maxParticles * 8, rate));
   }
@@ -1019,17 +1024,13 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.particleSystem.setParticleColor(index, this.blendedColorScratch.r, this.blendedColorScratch.g, this.blendedColorScratch.b);
   }
 
-  private recolorParticlesToCurrentDeviation(): void {
+  private recolorParticlesFromCachedDeviation(syncTrailHistory: boolean): void {
     for (let i = 0; i < this.particleSystem.maxParticles; i += 1) {
-      const i3 = i * 3;
-      this.positionScratch.set(
-        this.particleSystem.positions[i3],
-        this.particleSystem.positions[i3 + 1],
-        this.particleSystem.positions[i3 + 2],
-      );
-      this.setParticleGradientColor(i, this.computeNormalizedOffPath(i, this.positionScratch));
+      this.setParticleGradientColor(i, this.particleOffPathAmounts[i]);
     }
-    this.particleSystem.syncTrailColorHistoryToParticleColors();
+    if (syncTrailHistory) {
+      this.particleSystem.syncTrailColorHistoryToParticleColors();
+    }
     this.particleSystem.refreshGpuBuffers();
   }
 
@@ -1106,7 +1107,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       .addScaledVector(this.emitterRight, jitterA)
       .addScaledVector(this.emitterUp, jitterB);
 
-    const lifeScale = 0.72 + this.randomUnit(index, 2) * 0.55;
+    const flowLengthScale = Math.pow(Math.max(FLOW_LENGTH_MIN, this.uiState.flowLength), FLOW_LENGTH_LIFETIME_EXPONENT);
+    const lifeScale = (0.72 + this.randomUnit(index, 2) * 0.55) * flowLengthScale;
+    this.particleOffPathAmounts[index] = 0;
     this.setParticleGradientColor(index, 0);
     this.particleSystem.respawnParticle(index, this.positionScratch, this.velocityScratch, this.emitterConfig.particleLifetime * lifeScale);
 
@@ -1224,8 +1227,15 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.particleSystem.velocities[i3 + 1] = this.velocityScratch.y;
       this.particleSystem.velocities[i3 + 2] = this.velocityScratch.z;
 
-      this.setParticleGradientColor(i, this.computeNormalizedOffPath(i, this.positionScratch));
+      const normalizedOffPath = this.computeNormalizedOffPath(i, this.positionScratch);
+      this.particleOffPathAmounts[i] = normalizedOffPath;
+      this.setParticleGradientColor(i, normalizedOffPath);
       this.particleSystem.pushTrailSample(i);
+    }
+
+    if (this.pendingTrailGradientRecolor) {
+      this.particleSystem.syncTrailColorHistoryToParticleColors();
+      this.pendingTrailGradientRecolor = false;
     }
 
     this.particleSystem.refreshGpuBuffers();
@@ -1244,6 +1254,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     if (this.playbackState.isPlaying) {
       const scaledDt = dt * Math.max(0.05, this.playbackState.speed) * this.flowConfig.timeScale;
       this.simulate(scaledDt);
+    } else if (this.pendingTrailGradientRecolor) {
+      this.pendingTrailGradientRecolor = false;
+      this.recolorParticlesFromCachedDeviation(true);
     }
 
     this.renderer.render(this.scene, this.camera);
