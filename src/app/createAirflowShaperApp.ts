@@ -10,6 +10,7 @@ import {
   LineSegments,
   MOUSE,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   PCFSoftShadowMap,
@@ -114,9 +115,10 @@ const SCALE_EPSILON = 1e-4;
 const ENVIRONMENT_BLUR_SIGMA = 1.25;
 const BACK_SCALE_HANDLE_OFFSET = 0.4;
 const TRANSLATE_ARROW_HEAD_SCALE = 2 / 3;
-const TRANSLATE_PICKER_HIT_SCALE = 0.58;
-const ROTATE_PICKER_HIT_SCALE = 0.88;
-const SCALE_PICKER_HIT_SCALE = 0.58;
+const TRANSLATE_PICKER_HIT_SCALE = 1.12;
+const ROTATE_PICKER_HIT_SCALE = 0.95;
+const SCALE_PICKER_HIT_SCALE = 1.15;
+const SCALE_BOX_PICKER_SCALE = 1.75;
 const DEFAULT_PATH_COLOR = '#1100ff';
 const DEFAULT_OBSTRUCTED_COLOR = '#ff8552';
 const OFF_PATH_DISTANCE_FOR_MAX_COLOR = 0.9;
@@ -204,6 +206,13 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly pathColorScratch = new Color(DEFAULT_PATH_COLOR);
   private readonly obstructedColorScratch = new Color(DEFAULT_OBSTRUCTED_COLOR);
   private readonly blendedColorScratch = new Color(DEFAULT_PATH_COLOR);
+  private readonly scalePickerMaterial = new MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
 
   private environmentRenderTarget: WebGLRenderTarget | null = null;
   private isTransformDragging = false;
@@ -366,8 +375,25 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.scene.remove(helper);
     }
     for (const control of this.transformControls) {
+      const internal = control as unknown as {
+        _gizmo?: {
+          picker?: Record<string, Object3D>;
+        };
+      };
+      const pickerScaleGroup = internal._gizmo?.picker?.scale;
+      if (pickerScaleGroup) {
+        for (const child of [...pickerScaleGroup.children]) {
+          if (!child.userData?.customScalePicker) {
+            continue;
+          }
+          const meshLike = child as Object3D & { geometry?: BufferGeometry };
+          meshLike.geometry?.dispose();
+          pickerScaleGroup.remove(child);
+        }
+      }
       control.dispose();
     }
+    this.scalePickerMaterial.dispose();
     this.orbitControls.dispose();
 
     this.particleSystem.detach(this.scene);
@@ -1305,12 +1331,17 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     }
     if (mode === 'scale') {
       this.pushBackScaleHandles(control, BACK_SCALE_HANDLE_OFFSET);
+      this.rebuildScaleAxisPickersFromVisibleBoxes(control, SCALE_BOX_PICKER_SCALE);
     }
-    this.tightenTransformPickerHitAreas(
-      control,
-      mode,
-      mode === 'rotate' ? ROTATE_PICKER_HIT_SCALE : mode === 'scale' ? SCALE_PICKER_HIT_SCALE : TRANSLATE_PICKER_HIT_SCALE,
-    );
+    if (mode !== 'scale') {
+      this.tightenTransformPickerHitAreas(
+        control,
+        mode,
+        mode === 'rotate' ? ROTATE_PICKER_HIT_SCALE : TRANSLATE_PICKER_HIT_SCALE,
+      );
+    } else {
+      this.tightenTransformPickerHitAreas(control, mode, SCALE_PICKER_HIT_SCALE);
+    }
     this.scene.add(helper);
     return { control, helper };
   }
@@ -1546,38 +1577,78 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       }
     }
 
-    const pickerGroup = gizmo.picker?.scale;
-    if (pickerGroup) {
-      for (const axisName of ['X', 'Y', 'Z'] as const) {
-        const axisVector = axisVectors[axisName];
-        const toRemove: Object3D[] = [];
-        for (const child of pickerGroup.children) {
-          if (child.name !== axisName) {
-            continue;
-          }
-          const meshLike = child as Object3D & { geometry?: BufferGeometry };
-          const geometry = meshLike.geometry;
-          if (!geometry) {
-            continue;
-          }
+  }
 
-          geometry.computeBoundingBox();
-          const boundingBox = geometry.boundingBox;
-          if (!boundingBox) {
-            continue;
-          }
+  private rebuildScaleAxisPickersFromVisibleBoxes(control: TransformControls, scaleFactor: number): void {
+    const internal = control as unknown as {
+      _gizmo?: {
+        gizmo?: Record<string, Object3D>;
+        picker?: Record<string, Object3D>;
+      };
+    };
 
-          const center = boundingBox.getCenter(new Vector3());
-          const projection = center.dot(axisVector);
-          if (projection > 1e-4) {
-            toRemove.push(child);
-          } else if (projection < -1e-4) {
-            geometry.translate(-axisVector.x * offset, -axisVector.y * offset, -axisVector.z * offset);
-          }
+    const visualGroup = internal._gizmo?.gizmo?.scale;
+    const pickerGroup = internal._gizmo?.picker?.scale;
+    if (!visualGroup || !pickerGroup) {
+      return;
+    }
+
+    for (const child of [...pickerGroup.children]) {
+      if (child.userData?.customScalePicker) {
+        const meshLike = child as Object3D & { geometry?: BufferGeometry };
+        meshLike.geometry?.dispose();
+        pickerGroup.remove(child);
+      }
+    }
+
+    for (const axisName of ['X', 'Y', 'Z'] as const) {
+      for (const child of visualGroup.children) {
+        if (child.name !== axisName) {
+          continue;
         }
-        for (const child of toRemove) {
-          pickerGroup.remove(child);
+
+        const meshLike = child as Object3D & { geometry?: BufferGeometry };
+        const geometry = meshLike.geometry;
+        if (!geometry) {
+          continue;
         }
+
+        geometry.computeBoundingBox();
+        const boundingBox = geometry.boundingBox;
+        if (!boundingBox) {
+          continue;
+        }
+
+        const size = boundingBox.getSize(new Vector3());
+        const maxExtent = Math.max(size.x, size.y, size.z);
+        const minExtent = Math.min(size.x, size.y, size.z);
+        const isScaleBox = maxExtent <= 0.2 && minExtent > 0.03;
+        if (!isScaleBox) {
+          continue;
+        }
+
+        const pickerGeometry = geometry.clone();
+        pickerGeometry.computeBoundingBox();
+        const pickerBounds = pickerGeometry.boundingBox;
+        if (!pickerBounds) {
+          pickerGeometry.dispose();
+          continue;
+        }
+
+        const center = pickerBounds.getCenter(new Vector3());
+        pickerGeometry.translate(-center.x, -center.y, -center.z);
+        pickerGeometry.scale(scaleFactor, scaleFactor, scaleFactor);
+        pickerGeometry.translate(center.x, center.y, center.z);
+        pickerGeometry.computeBoundingBox();
+        pickerGeometry.computeBoundingSphere();
+
+        const pickerMesh = new Mesh(pickerGeometry, this.scalePickerMaterial);
+        pickerMesh.name = axisName;
+        pickerMesh.position.copy(child.position);
+        pickerMesh.quaternion.copy(child.quaternion);
+        pickerMesh.scale.copy(child.scale);
+        pickerMesh.userData.customScalePicker = true;
+        pickerGroup.add(pickerMesh);
       }
     }
   }
