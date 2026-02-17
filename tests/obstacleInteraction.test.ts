@@ -18,7 +18,7 @@ describe('obstacleInteraction', () => {
     const velocity = new Vector3(0.2, 0, -1.5);
     const flowDirection = new Vector3(0, 0, 1);
 
-    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 0, 0.4);
+    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 0, 0.4, 0);
 
     expect(position.z).toBeGreaterThan(0.01);
     expect(Math.abs(velocity.dot(obstacle.normal))).toBeLessThan(1e-4);
@@ -39,8 +39,28 @@ describe('obstacleInteraction', () => {
     const velocity = new Vector3(0, 0, 0);
     const flowDirection = new Vector3(0, 0, 1);
 
-    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 1.1, 0.3);
+    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 1.1, 0.3, 1);
 
     expect(velocity.length()).toBeGreaterThan(0);
+  });
+
+  it('does not add wake noise when turbulence is zero', () => {
+    const obstacle = createObstacleFieldData();
+    obstacle.center.set(0, 0, 0);
+    obstacle.normal.set(0, 1, 0);
+    obstacle.xAxis.set(1, 0, 0);
+    obstacle.yAxis.set(0, 0, 1);
+    obstacle.halfWidth = 0.8;
+    obstacle.halfHeight = 0.5;
+    obstacle.influenceRadius = 0.35;
+    obstacle.wakeStrength = 2;
+
+    const position = new Vector3(0, 0, 2);
+    const velocity = new Vector3(0, 0, 0);
+    const flowDirection = new Vector3(0, 0, 1);
+
+    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 1.1, 0.3, 0);
+
+    expect(velocity.length()).toBeCloseTo(0, 6);
   });
 });

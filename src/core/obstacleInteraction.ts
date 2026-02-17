@@ -51,6 +51,7 @@ export function updateObstacleFieldDataFromObject(
 const toCenterScratch = new Vector3();
 const radialScratch = new Vector3();
 const flowProjectionScratch = new Vector3();
+const flowTangentScratch = new Vector3();
 const lateralScratch = new Vector3();
 const wakeScratch = new Vector3();
 
@@ -65,6 +66,7 @@ export function applyObstacleInteraction(
   flowDirection: Vector3,
   time: number,
   turbulenceScale: number,
+  turbulenceStrength: number,
 ): void {
   toCenterScratch.copy(position).sub(obstacle.center);
 
@@ -100,7 +102,16 @@ export function applyObstacleInteraction(
     if (radialScratch.lengthSq() > 1e-6) {
       radialScratch.normalize();
       const blend = 1 - clamp(absZ / (influence * 1.3), 0, 1);
-      velocity.addScaledVector(radialScratch, 0.75 * blend);
+      // Always provide deterministic smooth bypass steering around the surface.
+      velocity.addScaledVector(radialScratch, 0.65 * blend);
+    }
+
+    // Pull flow back toward forward direction (surface tangent only) to regain straight stream.
+    const forwardPull = clamp(Math.abs(localZ) / (influence * 1.3), 0, 1);
+    flowTangentScratch.copy(flowDirection).addScaledVector(obstacle.normal, -flowDirection.dot(obstacle.normal));
+    if (flowTangentScratch.lengthSq() > 1e-6) {
+      flowTangentScratch.normalize();
+      velocity.addScaledVector(flowTangentScratch, 0.35 * (1 - forwardPull));
     }
   }
 
@@ -118,11 +129,14 @@ export function applyObstacleInteraction(
     return;
   }
 
-  sampleCurlNoise(position, time, turbulenceScale, wakeScratch);
-  wakeScratch.addScaledVector(flowDirection, -wakeScratch.dot(flowDirection));
-  const wakeLengthSq = wakeScratch.lengthSq();
-  if (wakeLengthSq > 1e-6) {
-    wakeScratch.multiplyScalar(1 / Math.sqrt(wakeLengthSq));
-    velocity.addScaledVector(wakeScratch, wakeFactor * obstacle.wakeStrength);
+  const turbulenceAmount = Math.max(0, turbulenceStrength);
+  if (turbulenceAmount > 1e-5) {
+    sampleCurlNoise(position, time, turbulenceScale, wakeScratch);
+    wakeScratch.addScaledVector(flowDirection, -wakeScratch.dot(flowDirection));
+    const wakeLengthSq = wakeScratch.lengthSq();
+    if (wakeLengthSq > 1e-6) {
+      wakeScratch.multiplyScalar(1 / Math.sqrt(wakeLengthSq));
+      velocity.addScaledVector(wakeScratch, wakeFactor * obstacle.wakeStrength * turbulenceAmount);
+    }
   }
 }

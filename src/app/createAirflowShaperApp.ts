@@ -984,7 +984,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.velocityScratch.addScaledVector(this.steeringScratch, Math.min(1, dt * 1.4));
 
       sampleCurlNoise(this.positionScratch, this.simTime, this.flowConfig.turbulenceScale, this.turbulenceScratch);
-      this.velocityScratch.addScaledVector(this.turbulenceScratch, this.flowConfig.turbulenceStrength * dt);
+      this.velocityScratch.addScaledVector(this.turbulenceScratch, this.flowConfig.turbulenceStrength * dt * 2.25);
 
       for (const runtime of this.obstacleRuntimes) {
         applyObstacleInteraction(
@@ -994,6 +994,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
           this.emitterNormal,
           this.simTime,
           this.flowConfig.turbulenceScale,
+          this.flowConfig.turbulenceStrength,
         );
       }
 
