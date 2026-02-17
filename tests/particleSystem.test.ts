@@ -26,4 +26,28 @@ describe('particleSystem trails', () => {
     system.detach(scene);
     system.dispose();
   });
+
+  it('propagates per-particle colors into trail color history', () => {
+    const system = new ParticleTrailSystem({ maxParticles: 1, trailLength: 3 });
+    const scene = new Scene();
+    system.attach(scene);
+
+    system.setParticleColor(0, 0.1, 0.2, 0.3);
+    system.respawnParticle(0, new Vector3(0, 0, 0), new Vector3(0, 0, 1), 5);
+    expect(system.trailColorHistory[0]).toBeCloseTo(0.1, 6);
+    expect(system.trailColorHistory[1]).toBeCloseTo(0.2, 6);
+    expect(system.trailColorHistory[2]).toBeCloseTo(0.3, 6);
+
+    system.positions[0] = 1;
+    system.positions[1] = 0.5;
+    system.positions[2] = -0.25;
+    system.setParticleColor(0, 0.8, 0.7, 0.6);
+    system.pushTrailSample(0);
+    expect(system.trailColorHistory[0]).toBeCloseTo(0.8, 6);
+    expect(system.trailColorHistory[1]).toBeCloseTo(0.7, 6);
+    expect(system.trailColorHistory[2]).toBeCloseTo(0.6, 6);
+
+    system.detach(scene);
+    system.dispose();
+  });
 });

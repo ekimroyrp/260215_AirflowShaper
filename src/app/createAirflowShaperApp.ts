@@ -63,6 +63,8 @@ interface UiState {
   densityY: number;
   flowSpeed: number;
   flowLength: number;
+  pathColor: string;
+  obstructedColor: string;
   turbulence: number;
   recoveryLength: number;
   impactBuffer: number;
@@ -81,6 +83,8 @@ interface UiElements {
   flowSpeedValue: HTMLSpanElement;
   flowLengthRange: HTMLInputElement;
   flowLengthValue: HTMLSpanElement;
+  pathColorInput: HTMLInputElement;
+  obstructedColorInput: HTMLInputElement;
   turbulenceRange: HTMLInputElement;
   turbulenceValue: HTMLSpanElement;
   recoveryLengthRange: HTMLInputElement;
@@ -113,6 +117,9 @@ const TRANSLATE_ARROW_HEAD_SCALE = 2 / 3;
 const TRANSLATE_PICKER_HIT_SCALE = 0.58;
 const ROTATE_PICKER_HIT_SCALE = 0.88;
 const SCALE_PICKER_HIT_SCALE = 0.58;
+const DEFAULT_PATH_COLOR = '#7ee9ff';
+const DEFAULT_OBSTRUCTED_COLOR = '#ff8552';
+const OFF_PATH_DISTANCE_FOR_MAX_COLOR = 0.9;
 const EMITTER_BASE_COLOR = 0x1b7ea5;
 const EMITTER_SELECTED_COLOR = 0x56ecff;
 const OBSTACLE_BASE_COLOR = 0x5f738a;
@@ -157,6 +164,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     densityY: 12,
     flowSpeed: 1,
     flowLength: 1,
+    pathColor: DEFAULT_PATH_COLOR,
+    obstructedColor: DEFAULT_OBSTRUCTED_COLOR,
     turbulence: 0.65,
     recoveryLength: 4,
     impactBuffer: 0.18,
@@ -189,6 +198,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly laneOriginScratch = new Vector3();
   private readonly laneDirectionScratch = new Vector3();
   private readonly laneTargetScratch = new Vector3();
+  private readonly pathColorScratch = new Color(DEFAULT_PATH_COLOR);
+  private readonly obstructedColorScratch = new Color(DEFAULT_OBSTRUCTED_COLOR);
+  private readonly blendedColorScratch = new Color(DEFAULT_PATH_COLOR);
 
   private environmentRenderTarget: WebGLRenderTarget | null = null;
   private isTransformDragging = false;
@@ -578,6 +590,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const flowSpeedValue = document.getElementById('flow-speed-value');
     const flowLengthRange = document.getElementById('flow-length');
     const flowLengthValue = document.getElementById('flow-length-value');
+    const pathColorInput = document.getElementById('path-color');
+    const obstructedColorInput = document.getElementById('obstructed-color');
     const turbulenceRange = document.getElementById('turbulence-strength');
     const turbulenceValue = document.getElementById('turbulence-value');
     const recoveryLengthRange = document.getElementById('recovery-length');
@@ -602,6 +616,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       !(flowSpeedValue instanceof HTMLSpanElement) ||
       !(flowLengthRange instanceof HTMLInputElement) ||
       !(flowLengthValue instanceof HTMLSpanElement) ||
+      !(pathColorInput instanceof HTMLInputElement) ||
+      !(obstructedColorInput instanceof HTMLInputElement) ||
       !(turbulenceRange instanceof HTMLInputElement) ||
       !(turbulenceValue instanceof HTMLSpanElement) ||
       !(recoveryLengthRange instanceof HTMLInputElement) ||
@@ -629,6 +645,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       flowSpeedValue,
       flowLengthRange,
       flowLengthValue,
+      pathColorInput,
+      obstructedColorInput,
       turbulenceRange,
       turbulenceValue,
       recoveryLengthRange,
@@ -667,6 +685,22 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       },
       this.uiState.flowLength,
     );
+
+    this.uiElements.pathColorInput.value = this.uiState.pathColor;
+    this.uiElements.obstructedColorInput.value = this.uiState.obstructedColor;
+    this.syncParticleGradientEndpoints();
+
+    this.addDomListener(this.uiElements.pathColorInput, 'input', () => {
+      this.uiState.pathColor = this.uiElements.pathColorInput.value;
+      this.syncParticleGradientEndpoints();
+      this.recolorParticlesToCurrentDeviation();
+    });
+
+    this.addDomListener(this.uiElements.obstructedColorInput, 'input', () => {
+      this.uiState.obstructedColor = this.uiElements.obstructedColorInput.value;
+      this.syncParticleGradientEndpoints();
+      this.recolorParticlesToCurrentDeviation();
+    });
 
     this.bindRangeControl(
       {
@@ -950,6 +984,55 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     return Math.max(8, Math.min(this.particleSystem.maxParticles * 8, rate));
   }
 
+  private syncParticleGradientEndpoints(): void {
+    this.pathColorScratch.set(this.uiState.pathColor);
+    this.obstructedColorScratch.set(this.uiState.obstructedColor);
+  }
+
+  private computeNormalizedOffPath(index: number, worldPosition: Vector3): number {
+    const i3 = index * 3;
+    this.laneOriginScratch.set(
+      this.particleLaneOrigins[i3],
+      this.particleLaneOrigins[i3 + 1],
+      this.particleLaneOrigins[i3 + 2],
+    );
+    this.laneDirectionScratch.set(
+      this.particleLaneDirections[i3],
+      this.particleLaneDirections[i3 + 1],
+      this.particleLaneDirections[i3 + 2],
+    );
+
+    const forwardDistance = this.steeringScratch.copy(worldPosition).sub(this.laneOriginScratch).dot(this.laneDirectionScratch);
+    if (forwardDistance <= 0) {
+      return 0;
+    }
+
+    this.laneTargetScratch.copy(this.laneDirectionScratch).multiplyScalar(forwardDistance).add(this.laneOriginScratch);
+    const lateralDistance = this.steeringScratch.copy(worldPosition).sub(this.laneTargetScratch).length();
+    const normalized = lateralDistance / OFF_PATH_DISTANCE_FOR_MAX_COLOR;
+    return Math.min(1, Math.max(0, normalized));
+  }
+
+  private setParticleGradientColor(index: number, normalizedOffPath: number): void {
+    const t = Math.min(1, Math.max(0, normalizedOffPath));
+    this.blendedColorScratch.copy(this.pathColorScratch).lerp(this.obstructedColorScratch, t);
+    this.particleSystem.setParticleColor(index, this.blendedColorScratch.r, this.blendedColorScratch.g, this.blendedColorScratch.b);
+  }
+
+  private recolorParticlesToCurrentDeviation(): void {
+    for (let i = 0; i < this.particleSystem.maxParticles; i += 1) {
+      const i3 = i * 3;
+      this.positionScratch.set(
+        this.particleSystem.positions[i3],
+        this.particleSystem.positions[i3 + 1],
+        this.particleSystem.positions[i3 + 2],
+      );
+      this.setParticleGradientColor(i, this.computeNormalizedOffPath(i, this.positionScratch));
+    }
+    this.particleSystem.syncTrailColorHistoryToParticleColors();
+    this.particleSystem.refreshGpuBuffers();
+  }
+
   private updateAllWorldMatrices(): void {
     for (const entity of this.planeEntities.values()) {
       entity.transformObject.updateMatrixWorld(true);
@@ -1024,6 +1107,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       .addScaledVector(this.emitterUp, jitterB);
 
     const lifeScale = 0.72 + this.randomUnit(index, 2) * 0.55;
+    this.setParticleGradientColor(index, 0);
     this.particleSystem.respawnParticle(index, this.positionScratch, this.velocityScratch, this.emitterConfig.particleLifetime * lifeScale);
 
     const i3 = index * 3;
@@ -1140,6 +1224,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.particleSystem.velocities[i3 + 1] = this.velocityScratch.y;
       this.particleSystem.velocities[i3 + 2] = this.velocityScratch.z;
 
+      this.setParticleGradientColor(i, this.computeNormalizedOffPath(i, this.positionScratch));
       this.particleSystem.pushTrailSample(i);
     }
 
