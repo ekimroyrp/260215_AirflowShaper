@@ -10,7 +10,8 @@
 - Particle trails rendered in real time.
 - Add unlimited obstacle planes via `Add Plane`.
 - Obstacle interaction with slide and wake turbulence behavior.
-- Play, pause, restart controls and flow speed/turbulence sliders.
+- Downstream lane recovery that returns particles toward their unobstructed streamlines after obstacle interaction.
+- Play, pause, restart controls and flow speed/flow length/turbulence/impact-buffer sliders.
 - Orbit/transform interaction model aligned with `260208_SoapFilm`.
 - Vitest suite for emitter, flow field, playback, obstacle interaction, and trail reset logic.
 
@@ -28,7 +29,9 @@
   - `Pause`
   - `Restart`
   - `Flow Speed`
+  - `Flow Length`
   - `Turbulence`
+  - `Impact Buffer`
   - `Density X`
   - `Density Y`
   - `Add Plane`

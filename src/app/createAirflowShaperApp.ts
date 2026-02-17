@@ -62,7 +62,9 @@ interface UiState {
   densityX: number;
   densityY: number;
   flowSpeed: number;
+  flowLength: number;
   turbulence: number;
+  impactBuffer: number;
 }
 
 interface UiElements {
@@ -76,8 +78,12 @@ interface UiElements {
   addPlaneButton: HTMLButtonElement;
   flowSpeedRange: HTMLInputElement;
   flowSpeedValue: HTMLSpanElement;
+  flowLengthRange: HTMLInputElement;
+  flowLengthValue: HTMLSpanElement;
   turbulenceRange: HTMLInputElement;
   turbulenceValue: HTMLSpanElement;
+  impactBufferRange: HTMLInputElement;
+  impactBufferValue: HTMLSpanElement;
   densityXRange: HTMLInputElement;
   densityXValue: HTMLSpanElement;
   densityYRange: HTMLInputElement;
@@ -134,7 +140,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     drag: 0.8,
     turbulenceStrength: 0.65,
     turbulenceScale: 0.35,
-    obstacleInfluenceRadius: 0.5,
+    obstacleInfluenceRadius: 0.18,
     wakeStrength: 1.05,
   };
 
@@ -143,7 +149,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     densityX: 20,
     densityY: 12,
     flowSpeed: 1,
+    flowLength: 1,
     turbulence: 0.65,
+    impactBuffer: 0.18,
   };
 
   private readonly particleSystem: ParticleTrailSystem;
@@ -161,6 +169,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly emitterNormal = new Vector3(0, 0, 1);
   private readonly emitterRight = new Vector3(1, 0, 0);
   private readonly emitterUp = new Vector3(0, 1, 0);
+  private readonly particleLaneOrigins = new Float32Array(MAX_PARTICLES * 3);
+  private readonly particleLaneDirections = new Float32Array(MAX_PARTICLES * 3);
 
   private readonly quaternionScratch = new Quaternion();
   private readonly positionScratch = new Vector3();
@@ -168,6 +178,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly baseFlowScratch = new Vector3();
   private readonly steeringScratch = new Vector3();
   private readonly turbulenceScratch = new Vector3();
+  private readonly laneOriginScratch = new Vector3();
+  private readonly laneDirectionScratch = new Vector3();
+  private readonly laneTargetScratch = new Vector3();
 
   private environmentRenderTarget: WebGLRenderTarget | null = null;
   private isTransformDragging = false;
@@ -555,8 +568,12 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const addPlaneButton = document.getElementById('add-plane');
     const flowSpeedRange = document.getElementById('flow-speed');
     const flowSpeedValue = document.getElementById('flow-speed-value');
+    const flowLengthRange = document.getElementById('flow-length');
+    const flowLengthValue = document.getElementById('flow-length-value');
     const turbulenceRange = document.getElementById('turbulence-strength');
     const turbulenceValue = document.getElementById('turbulence-value');
+    const impactBufferRange = document.getElementById('impact-buffer');
+    const impactBufferValue = document.getElementById('impact-buffer-value');
     const densityXRange = document.getElementById('density-x');
     const densityXValue = document.getElementById('density-x-value');
     const densityYRange = document.getElementById('density-y');
@@ -573,8 +590,12 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       !(addPlaneButton instanceof HTMLButtonElement) ||
       !(flowSpeedRange instanceof HTMLInputElement) ||
       !(flowSpeedValue instanceof HTMLSpanElement) ||
+      !(flowLengthRange instanceof HTMLInputElement) ||
+      !(flowLengthValue instanceof HTMLSpanElement) ||
       !(turbulenceRange instanceof HTMLInputElement) ||
       !(turbulenceValue instanceof HTMLSpanElement) ||
+      !(impactBufferRange instanceof HTMLInputElement) ||
+      !(impactBufferValue instanceof HTMLSpanElement) ||
       !(densityXRange instanceof HTMLInputElement) ||
       !(densityXValue instanceof HTMLSpanElement) ||
       !(densityYRange instanceof HTMLInputElement) ||
@@ -594,8 +615,12 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       addPlaneButton,
       flowSpeedRange,
       flowSpeedValue,
+      flowLengthRange,
+      flowLengthValue,
       turbulenceRange,
       turbulenceValue,
+      impactBufferRange,
+      impactBufferValue,
       densityXRange,
       densityXValue,
       densityYRange,
@@ -619,6 +644,18 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
 
     this.bindRangeControl(
       {
+        input: this.uiElements.flowLengthRange,
+        value: this.uiElements.flowLengthValue,
+        format: (value) => value.toFixed(2),
+      },
+      (value) => {
+        this.uiState.flowLength = value;
+      },
+      this.uiState.flowLength,
+    );
+
+    this.bindRangeControl(
+      {
         input: this.uiElements.turbulenceRange,
         value: this.uiElements.turbulenceValue,
         format: (value) => value.toFixed(2),
@@ -628,6 +665,19 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
         this.flowConfig.turbulenceStrength = value;
       },
       this.uiState.turbulence,
+    );
+
+    this.bindRangeControl(
+      {
+        input: this.uiElements.impactBufferRange,
+        value: this.uiElements.impactBufferValue,
+        format: (value) => value.toFixed(2),
+      },
+      (value) => {
+        this.uiState.impactBuffer = value;
+        this.flowConfig.obstacleInfluenceRadius = value;
+      },
+      this.uiState.impactBuffer,
     );
 
     this.bindRangeControl(
@@ -867,6 +917,12 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.emitterConfig.spawnRate = computeSpawnRateFromVertexCount(vertexCount, this.particleSystem.maxParticles);
   }
 
+  private getEffectiveSpawnRate(): number {
+    const lengthScale = Math.max(0.35, this.uiState.flowLength);
+    const rate = this.emitterConfig.spawnRate / lengthScale;
+    return Math.max(8, Math.min(this.particleSystem.maxParticles * 8, rate));
+  }
+
   private updateAllWorldMatrices(): void {
     for (const entity of this.planeEntities.values()) {
       entity.transformObject.updateMatrixWorld(true);
@@ -942,6 +998,48 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
 
     const lifeScale = 0.72 + this.randomUnit(index, 2) * 0.55;
     this.particleSystem.respawnParticle(index, this.positionScratch, this.velocityScratch, this.emitterConfig.particleLifetime * lifeScale);
+
+    const i3 = index * 3;
+    this.particleLaneOrigins[i3] = this.positionScratch.x;
+    this.particleLaneOrigins[i3 + 1] = this.positionScratch.y;
+    this.particleLaneOrigins[i3 + 2] = this.positionScratch.z;
+    this.particleLaneDirections[i3] = this.emitterNormal.x;
+    this.particleLaneDirections[i3 + 1] = this.emitterNormal.y;
+    this.particleLaneDirections[i3 + 2] = this.emitterNormal.z;
+  }
+
+  private applyLaneRecovery(index: number, dt: number, nearObstacleSurface: boolean): void {
+    if (nearObstacleSurface) {
+      return;
+    }
+
+    const i3 = index * 3;
+    this.laneOriginScratch.set(
+      this.particleLaneOrigins[i3],
+      this.particleLaneOrigins[i3 + 1],
+      this.particleLaneOrigins[i3 + 2],
+    );
+    this.laneDirectionScratch.set(
+      this.particleLaneDirections[i3],
+      this.particleLaneDirections[i3 + 1],
+      this.particleLaneDirections[i3 + 2],
+    );
+
+    const forwardDistance = this.steeringScratch.copy(this.positionScratch).sub(this.laneOriginScratch).dot(this.laneDirectionScratch);
+    if (forwardDistance <= 0) {
+      return;
+    }
+
+    this.laneTargetScratch.copy(this.laneDirectionScratch).multiplyScalar(forwardDistance).add(this.laneOriginScratch);
+    this.steeringScratch.copy(this.laneTargetScratch).sub(this.positionScratch);
+    const lateralError = this.steeringScratch.length();
+    if (lateralError <= 1e-4) {
+      return;
+    }
+
+    const turbulenceDamping = 1 - Math.min(0.8, this.flowConfig.turbulenceStrength * 0.28);
+    const recoveryGain = 1.05 * turbulenceDamping;
+    this.velocityScratch.addScaledVector(this.steeringScratch, recoveryGain * dt);
   }
 
   private simulate(dt: number): void {
@@ -951,7 +1049,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.refreshEmitterSpawnData();
     this.refreshObstacleFieldData();
 
-    this.spawnAccumulator += dt * this.emitterConfig.spawnRate;
+    this.spawnAccumulator += dt * this.getEffectiveSpawnRate();
     while (this.spawnAccumulator >= 1) {
       this.respawnParticleAtEmitter(this.spawnParticleCursor);
       this.spawnParticleCursor = (this.spawnParticleCursor + 1) % this.particleSystem.maxParticles;
@@ -986,8 +1084,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       sampleCurlNoise(this.positionScratch, this.simTime, this.flowConfig.turbulenceScale, this.turbulenceScratch);
       this.velocityScratch.addScaledVector(this.turbulenceScratch, this.flowConfig.turbulenceStrength * dt * 2.25);
 
+      let nearObstacleSurface = false;
       for (const runtime of this.obstacleRuntimes) {
-        applyObstacleInteraction(
+        const touchedSurface = applyObstacleInteraction(
           this.positionScratch,
           this.velocityScratch,
           runtime.data,
@@ -996,7 +1095,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
           this.flowConfig.turbulenceScale,
           this.flowConfig.turbulenceStrength,
         );
+        nearObstacleSurface = nearObstacleSurface || touchedSurface;
       }
+
+      this.applyLaneRecovery(i, dt, nearObstacleSurface);
 
       this.velocityScratch.multiplyScalar(dragScale);
       this.positionScratch.addScaledVector(this.velocityScratch, dt);

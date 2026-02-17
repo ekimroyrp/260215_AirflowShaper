@@ -54,6 +54,7 @@ const flowProjectionScratch = new Vector3();
 const flowTangentScratch = new Vector3();
 const lateralScratch = new Vector3();
 const wakeScratch = new Vector3();
+const recoveryTargetScratch = new Vector3();
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -67,7 +68,7 @@ export function applyObstacleInteraction(
   time: number,
   turbulenceScale: number,
   turbulenceStrength: number,
-): void {
+): boolean {
   toCenterScratch.copy(position).sub(obstacle.center);
 
   const localX = toCenterScratch.dot(obstacle.xAxis);
@@ -117,7 +118,7 @@ export function applyObstacleInteraction(
 
   const downstream = toCenterScratch.dot(flowDirection);
   if (downstream <= 0) {
-    return;
+    return nearSurface;
   }
 
   flowProjectionScratch.copy(flowDirection).multiplyScalar(downstream);
@@ -126,7 +127,18 @@ export function applyObstacleInteraction(
   const wakeRadius = Math.max(obstacle.halfWidth, obstacle.halfHeight) + influence;
   const wakeFactor = computeWakeDecay(downstream, lateralDistance, wakeRadius);
   if (wakeFactor <= 1e-5) {
-    return;
+    return nearSurface;
+  }
+
+  // After clearing the obstacle, gradually steer particles back to the
+  // original stream direction (flowDirection) while keeping their speed.
+  if (!nearSurface && downstream > influence * 0.35) {
+    const currentSpeed = velocity.length();
+    if (currentSpeed > 1e-5) {
+      const recoveryBlend = clamp(wakeFactor * 0.22, 0, 0.2);
+      recoveryTargetScratch.copy(flowDirection).multiplyScalar(currentSpeed);
+      velocity.lerp(recoveryTargetScratch, recoveryBlend);
+    }
   }
 
   const turbulenceAmount = Math.max(0, turbulenceStrength);
@@ -139,4 +151,6 @@ export function applyObstacleInteraction(
       velocity.addScaledVector(wakeScratch, wakeFactor * obstacle.wakeStrength * turbulenceAmount);
     }
   }
+
+  return nearSurface;
 }

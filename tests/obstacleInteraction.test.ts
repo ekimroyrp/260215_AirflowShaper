@@ -63,4 +63,26 @@ describe('obstacleInteraction', () => {
 
     expect(velocity.length()).toBeCloseTo(0, 6);
   });
+
+  it('gradually realigns downstream flow back toward stream direction', () => {
+    const obstacle = createObstacleFieldData();
+    obstacle.center.set(0, 0, 0);
+    obstacle.normal.set(0, 1, 0);
+    obstacle.xAxis.set(1, 0, 0);
+    obstacle.yAxis.set(0, 0, 1);
+    obstacle.halfWidth = 1;
+    obstacle.halfHeight = 0.5;
+    obstacle.influenceRadius = 0.2;
+    obstacle.wakeStrength = 0;
+
+    const flowDirection = new Vector3(0, 0, 1);
+    const position = new Vector3(0, 0, 1.4);
+    const velocity = new Vector3(1.2, 0, 1.8);
+
+    const lateralBefore = velocity.clone().addScaledVector(flowDirection, -velocity.dot(flowDirection)).length();
+    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 0.8, 0.3, 0);
+    const lateralAfter = velocity.clone().addScaledVector(flowDirection, -velocity.dot(flowDirection)).length();
+
+    expect(lateralAfter).toBeLessThan(lateralBefore);
+  });
 });
