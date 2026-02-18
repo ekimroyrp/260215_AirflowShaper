@@ -166,7 +166,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     drag: 0.8,
     turbulenceStrength: 0,
     turbulenceScale: 0.35,
-    recoveryLength: 2,
+    recoveryLength: 1,
     obstacleInfluenceRadius: 0.05,
     wakeStrength: 1.05,
   };
@@ -180,7 +180,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     pathColor: DEFAULT_PATH_COLOR,
     obstructedColor: DEFAULT_OBSTRUCTED_COLOR,
     turbulence: 0,
-    recoveryLength: 2,
+    recoveryLength: 1,
     impactBuffer: 0.05,
   };
 
@@ -202,6 +202,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   private readonly particleLaneOrigins = new Float32Array(MAX_PARTICLES * 3);
   private readonly particleLaneDirections = new Float32Array(MAX_PARTICLES * 3);
   private readonly particleOffPathAmounts = new Float32Array(MAX_PARTICLES);
+  private readonly particleImpactTurbulence = new Float32Array(MAX_PARTICLES);
 
   private readonly quaternionScratch = new Quaternion();
   private readonly positionScratch = new Vector3();
@@ -384,10 +385,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.updateAllWorldMatrices();
     this.refreshEmitterSpawnData();
     this.refreshObstacleFieldData();
-
-    for (let i = 0; i < this.particleSystem.maxParticles; i += 1) {
-      this.respawnParticleAtEmitter(i);
-    }
+    this.initializeRestartParticleDistribution();
 
     this.particleSystem.clearTrailsToCurrentPositions();
     this.particleSystem.refreshGpuBuffers();
@@ -1032,7 +1030,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const value = Number(input.value);
     const span = max - min;
     const percent = span <= 0 ? 0 : (value - min) / span;
-    const thumbSize = 16;
+    const uiScaleRaw = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-size-scale'));
+    const uiScale = Number.isFinite(uiScaleRaw) && uiScaleRaw > 0 ? uiScaleRaw : 1;
+    const thumbSize = 16 * uiScale;
     const trackWidth = input.clientWidth || 1;
     const usable = Math.max(trackWidth - thumbSize, 1);
     const px = percent * usable + thumbSize * 0.5;
@@ -1265,6 +1265,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const flowLengthScale = Math.pow(Math.max(FLOW_LENGTH_MIN, this.uiState.flowLength), FLOW_LENGTH_LIFETIME_EXPONENT);
     const lifeScale = (0.72 + this.randomUnit(index, 2) * 0.55) * flowLengthScale;
     this.particleOffPathAmounts[index] = 0;
+    this.particleImpactTurbulence[index] = 0;
     this.setParticleGradientColor(index, 0);
     this.particleSystem.respawnParticle(index, this.positionScratch, this.velocityScratch, this.emitterConfig.particleLifetime * lifeScale);
 
@@ -1275,6 +1276,34 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.particleLaneDirections[i3] = this.emitterNormal.x;
     this.particleLaneDirections[i3 + 1] = this.emitterNormal.y;
     this.particleLaneDirections[i3 + 2] = this.emitterNormal.z;
+  }
+
+  private initializeRestartParticleDistribution(): void {
+    const maxParticles = this.particleSystem.maxParticles;
+    const startDistance = Math.max(0.5, this.uiState.flowLength * 0.9);
+
+    for (let i = 0; i < maxParticles; i += 1) {
+      this.respawnParticleAtEmitter(i);
+      const phase = 0.02 + this.randomUnit(i, 5) * 0.96;
+      this.particleSystem.ages[i] = this.particleSystem.lifetimes[i] * phase;
+
+      const i3 = i * 3;
+      this.positionScratch.set(
+        this.particleLaneOrigins[i3],
+        this.particleLaneOrigins[i3 + 1],
+        this.particleLaneOrigins[i3 + 2],
+      );
+      this.laneDirectionScratch.set(
+        this.particleLaneDirections[i3],
+        this.particleLaneDirections[i3 + 1],
+        this.particleLaneDirections[i3 + 2],
+      );
+      this.positionScratch.addScaledVector(this.laneDirectionScratch, startDistance * phase);
+
+      this.particleSystem.positions[i3] = this.positionScratch.x;
+      this.particleSystem.positions[i3 + 1] = this.positionScratch.y;
+      this.particleSystem.positions[i3 + 2] = this.positionScratch.z;
+    }
   }
 
   private applyLaneRecovery(index: number, dt: number, nearObstacleSurface: boolean): void {
@@ -1306,10 +1335,9 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       return;
     }
 
-    const turbulenceDamping = 1 - Math.min(0.8, this.flowConfig.turbulenceStrength * 0.28);
     const recoveryDistance = Math.max(0.1, this.flowConfig.recoveryLength);
     const forwardSpeed = Math.max(0.2, Math.abs(this.velocityScratch.dot(this.laneDirectionScratch)));
-    const recoveryRate = (forwardSpeed / recoveryDistance) * 1.2 * turbulenceDamping;
+    const recoveryRate = (forwardSpeed / recoveryDistance) * 1.2;
     const recoveryStep = Math.min(0.35, recoveryRate * dt);
     this.velocityScratch.addScaledVector(this.steeringScratch, recoveryStep);
   }
@@ -1353,10 +1381,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.steeringScratch.copy(this.baseFlowScratch).sub(this.velocityScratch);
       this.velocityScratch.addScaledVector(this.steeringScratch, Math.min(1, dt * 1.4));
 
-      sampleCurlNoise(this.positionScratch, this.simTime, this.flowConfig.turbulenceScale, this.turbulenceScratch);
-      this.velocityScratch.addScaledVector(this.turbulenceScratch, this.flowConfig.turbulenceStrength * dt * 2.25);
-
       let nearObstacleSurface = false;
+      let impactedThisFrame = false;
       for (const runtime of this.obstacleRuntimes) {
         const touchedSurface = applyObstacleInteraction(
           this.positionScratch,
@@ -1365,9 +1391,28 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
           this.emitterNormal,
           this.simTime,
           this.flowConfig.turbulenceScale,
-          this.flowConfig.turbulenceStrength,
+          0,
         );
         nearObstacleSurface = nearObstacleSurface || touchedSurface;
+        impactedThisFrame = impactedThisFrame || touchedSurface;
+      }
+
+      if (impactedThisFrame) {
+        this.particleImpactTurbulence[i] = 1;
+      }
+
+      const impactTurbulenceWeight = this.particleImpactTurbulence[i];
+      if (impactTurbulenceWeight > 1e-4 && this.flowConfig.turbulenceStrength > 1e-5) {
+        sampleCurlNoise(this.positionScratch, this.simTime, this.flowConfig.turbulenceScale, this.turbulenceScratch);
+        this.turbulenceScratch.addScaledVector(this.emitterNormal, -this.turbulenceScratch.dot(this.emitterNormal));
+        const turbulenceLengthSq = this.turbulenceScratch.lengthSq();
+        if (turbulenceLengthSq > 1e-6) {
+          this.turbulenceScratch.multiplyScalar(1 / Math.sqrt(turbulenceLengthSq));
+          this.velocityScratch.addScaledVector(
+            this.turbulenceScratch,
+            this.flowConfig.turbulenceStrength * impactTurbulenceWeight * dt * 2.25,
+          );
+        }
       }
 
       this.applyLaneRecovery(i, dt, nearObstacleSurface);
@@ -1383,6 +1428,18 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.particleSystem.velocities[i3 + 2] = this.velocityScratch.z;
 
       const normalizedOffPath = this.computeNormalizedOffPath(i, this.positionScratch);
+      if (nearObstacleSurface) {
+        this.particleImpactTurbulence[i] = 1;
+      } else if (this.particleImpactTurbulence[i] > 0) {
+        const targetWeight = Math.min(1, normalizedOffPath * 2);
+        const recoveryDistance = Math.max(0.1, this.flowConfig.recoveryLength);
+        const blend = Math.min(1, dt * (1.2 + 2.8 / recoveryDistance));
+        const relaxedWeight = this.particleImpactTurbulence[i] + (targetWeight - this.particleImpactTurbulence[i]) * blend;
+        this.particleImpactTurbulence[i] =
+          relaxedWeight < 0.02 && normalizedOffPath < 0.01
+            ? 0
+            : relaxedWeight;
+      }
       this.particleOffPathAmounts[i] = normalizedOffPath;
       this.setParticleGradientColor(i, normalizedOffPath);
       this.particleSystem.pushTrailSample(i);

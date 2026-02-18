@@ -1,7 +1,8 @@
 :root {
+  --ui-size-scale: 0.8;
   --panel-line: rgba(255, 255, 255, 0.35);
   --panel-bg: rgba(8, 18, 32, 0.55);
-  --panel-blur: blur(14px);
+  --panel-blur: blur(calc(14px * var(--ui-size-scale)));
   --text: #e7f0ff;
   --accent: #e5f1ff;
   --shadow: rgba(3, 10, 20, 0.55);
@@ -42,17 +43,21 @@ body {
 
 #ui-panel {
   position: absolute;
-  top: 18px;
-  left: 18px;
-  width: 280px;
-  min-width: 280px;
-  max-width: 280px;
+  top: calc(18px * var(--ui-size-scale));
+  left: calc(18px * var(--ui-size-scale));
+  width: calc(280px * var(--ui-size-scale));
+  min-width: calc(280px * var(--ui-size-scale));
+  max-width: calc(280px * var(--ui-size-scale));
   color: var(--text);
   background: var(--panel-bg);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--ui-size-scale));
   backdrop-filter: var(--panel-blur);
   -webkit-backdrop-filter: var(--panel-blur);
-  box-shadow: 0 10px 30px var(--shadow);
+  box-shadow:
+    0
+    calc(10px * var(--ui-size-scale))
+    calc(30px * var(--ui-size-scale))
+    var(--shadow);
   overflow: hidden;
   user-select: none;
   z-index: 10;
@@ -62,8 +67,10 @@ body {
 
 #ui-handle,
 #ui-handle-bottom {
-  padding: 12px 14px;
-  min-height: 18px;
+  padding:
+    calc(12px * var(--ui-size-scale))
+    calc(14px * var(--ui-size-scale));
+  min-height: calc(18px * var(--ui-size-scale));
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
   cursor: grab;
 }
@@ -72,20 +79,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  border-radius: 12px 12px 0 0;
+  gap: calc(8px * var(--ui-size-scale));
+  border-radius:
+    calc(12px * var(--ui-size-scale))
+    calc(12px * var(--ui-size-scale))
+    0
+    0;
 }
 
 #ui-handle-bottom {
-  border-radius: 0 0 12px 12px;
+  border-radius:
+    0
+    0
+    calc(12px * var(--ui-size-scale))
+    calc(12px * var(--ui-size-scale));
 }
 
 .collapse-button {
   background: linear-gradient(135deg, rgba(47, 107, 255, 0.35), rgba(56, 207, 255, 0.22));
   color: var(--text);
-  width: 26px;
-  height: 22px;
-  border-radius: 8px;
+  width: calc(26px * var(--ui-size-scale));
+  height: calc(22px * var(--ui-size-scale));
+  border-radius: calc(8px * var(--ui-size-scale));
   font-weight: 600;
   cursor: pointer;
   box-shadow: none;
@@ -96,11 +111,11 @@ body {
 }
 
 .collapse-button:hover {
-  transform: translateY(-1px);
+  transform: translateY(calc(-1px * var(--ui-size-scale)));
 }
 
 .collapse-button:active {
-  transform: translateY(1px);
+  transform: translateY(calc(1px * var(--ui-size-scale)));
 }
 
 .collapse-icon {
@@ -122,7 +137,10 @@ body {
 }
 
 .ui-body {
-  padding: 12px 14px 8px;
+  padding:
+    calc(12px * var(--ui-size-scale))
+    calc(14px * var(--ui-size-scale))
+    calc(8px * var(--ui-size-scale));
   position: relative;
   overflow-y: auto;
   flex: 1 1 auto;
@@ -131,7 +149,7 @@ body {
 }
 
 .ui-body::-webkit-scrollbar {
-  width: 8px;
+  width: calc(8px * var(--ui-size-scale));
 }
 
 .ui-body::-webkit-scrollbar-track {
@@ -149,8 +167,8 @@ body {
 }
 
 .panel-section {
-  padding-bottom: 6px;
-  margin-bottom: 12px;
+  padding-bottom: calc(6px * var(--ui-size-scale));
+  margin-bottom: calc(12px * var(--ui-size-scale));
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -164,28 +182,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
+  gap: calc(12px * var(--ui-size-scale));
+  font-size: calc(12px * var(--ui-size-scale));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 4px 0 10px;
+  margin:
+    calc(4px * var(--ui-size-scale))
+    0
+    calc(10px * var(--ui-size-scale));
   background: rgba(255, 255, 255, 0.08);
   border: none;
-  padding: 6px 10px;
+  padding:
+    calc(6px * var(--ui-size-scale))
+    calc(10px * var(--ui-size-scale));
   cursor: pointer;
   text-align: left;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--ui-size-scale));
 }
 
 .panel-heading:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 4px;
-  border-radius: 6px;
+  outline-offset: calc(4px * var(--ui-size-scale));
+  border-radius: calc(6px * var(--ui-size-scale));
 }
 
 .panel-chevron {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-size-scale));
   transform: rotate(180deg);
   transition: transform 160ms ease;
 }
@@ -205,28 +228,28 @@ body {
 .control {
   display: block;
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: calc(12px * var(--ui-size-scale));
   position: relative;
 }
 
 .control:last-child {
-  margin-bottom: 8px;
+  margin-bottom: calc(8px * var(--ui-size-scale));
 }
 
 .control-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 14px;
-  margin-bottom: 6px;
-  gap: 12px;
+  font-size: calc(14px * var(--ui-size-scale));
+  margin-bottom: calc(6px * var(--ui-size-scale));
+  gap: calc(12px * var(--ui-size-scale));
 }
 
 .switch {
   position: relative;
   display: inline-block;
-  width: 36px;
-  height: 18px;
+  width: calc(36px * var(--ui-size-scale));
+  height: calc(18px * var(--ui-size-scale));
 }
 
 .switch input {
@@ -246,10 +269,10 @@ body {
 .slider::before {
   position: absolute;
   content: "";
-  height: 14px;
-  width: 14px;
-  left: 2px;
-  top: 2px;
+  height: calc(14px * var(--ui-size-scale));
+  width: calc(14px * var(--ui-size-scale));
+  left: calc(2px * var(--ui-size-scale));
+  top: calc(2px * var(--ui-size-scale));
   background: #f2f4f8;
   border-radius: 50%;
   transition: transform 160ms ease;
@@ -260,7 +283,7 @@ body {
 }
 
 .switch input:checked + .slider::before {
-  transform: translateX(18px);
+  transform: translateX(calc(18px * var(--ui-size-scale)));
 }
 
 input[type="range"] {
@@ -268,13 +291,13 @@ input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
-  height: 12px;
+  height: calc(12px * var(--ui-size-scale));
   border-radius: 999px;
   background: linear-gradient(
     90deg,
     var(--ui-blue-a) 0px,
-    var(--ui-blue-b) var(--range-progress, 50px),
-    rgba(255, 255, 255, 0.12) var(--range-progress, 50px),
+    var(--ui-blue-b) var(--range-progress, calc(50px * var(--ui-size-scale))),
+    rgba(255, 255, 255, 0.12) var(--range-progress, calc(50px * var(--ui-size-scale))),
     rgba(255, 255, 255, 0.12) 100%
   );
   box-shadow: none;
@@ -286,21 +309,21 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--ui-size-scale));
+  height: calc(16px * var(--ui-size-scale));
   border-radius: 50%;
   background: linear-gradient(135deg, #ffffff, #e6eef5);
   box-shadow: none;
-  margin-top: -1px;
+  margin-top: calc(-1px * var(--ui-size-scale));
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--ui-size-scale));
+  height: calc(16px * var(--ui-size-scale));
   border-radius: 50%;
   background: linear-gradient(135deg, #ffffff, #e6eef5);
   box-shadow: none;
-  margin-top: -1px;
+  margin-top: calc(-1px * var(--ui-size-scale));
 }
 
 input[type="range"]::-moz-range-track {
@@ -309,9 +332,9 @@ input[type="range"]::-moz-range-track {
 
 input[type="color"].color-input {
   width: 100%;
-  height: 30px;
-  padding: 2px;
-  border-radius: 8px;
+  height: calc(30px * var(--ui-size-scale));
+  padding: calc(2px * var(--ui-size-scale));
+  border-radius: calc(8px * var(--ui-size-scale));
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(6, 12, 22, 0.6);
   cursor: pointer;
@@ -323,23 +346,23 @@ input[type="color"].color-input::-webkit-color-swatch-wrapper {
 
 input[type="color"].color-input::-webkit-color-swatch {
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--ui-size-scale));
 }
 
 input[type="color"].color-input::-moz-color-swatch {
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--ui-size-scale));
 }
 
 .select-input {
   width: 100%;
-  height: 32px;
-  border-radius: 10px;
+  height: calc(32px * var(--ui-size-scale));
+  border-radius: calc(10px * var(--ui-size-scale));
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(6, 12, 22, 0.6);
   color: var(--text);
-  padding: 0 10px;
-  font-size: 13px;
+  padding: 0 calc(10px * var(--ui-size-scale));
+  font-size: calc(13px * var(--ui-size-scale));
   outline: none;
   min-width: 0;
   appearance: none;
@@ -350,16 +373,22 @@ input[type="color"].color-input::-moz-color-swatch {
   background-image:
     linear-gradient(45deg, transparent 50%, #e7f0ff 50%),
     linear-gradient(135deg, #e7f0ff 50%, transparent 50%);
-  background-position: calc(100% - 16px) calc(50% - 4px), calc(100% - 11px) calc(50% - 4px);
-  background-size: 6px 6px;
+  background-position:
+    calc(100% - 16px * var(--ui-size-scale))
+    calc(50% - 4px * var(--ui-size-scale)),
+    calc(100% - 11px * var(--ui-size-scale))
+    calc(50% - 4px * var(--ui-size-scale));
+  background-size:
+    calc(6px * var(--ui-size-scale))
+    calc(6px * var(--ui-size-scale));
   background-repeat: no-repeat;
-  padding-right: 28px;
+  padding-right: calc(28px * var(--ui-size-scale));
 }
 
 .pill-button {
   width: 100%;
-  height: 34px;
-  border-radius: 10px;
+  height: calc(34px * var(--ui-size-scale));
+  border-radius: calc(10px * var(--ui-size-scale));
   background: linear-gradient(135deg, rgba(47, 107, 255, 0.26), rgba(56, 207, 255, 0.14));
   color: var(--text);
   font-weight: 500;
@@ -378,17 +407,17 @@ input[type="color"].color-input::-moz-color-swatch {
 .pill-button:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--ui-blue-a), var(--ui-blue-c));
   color: #071320;
-  transform: translateY(-1px);
+  transform: translateY(calc(-1px * var(--ui-size-scale)));
 }
 
 .pill-button:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(calc(1px * var(--ui-size-scale)));
 }
 
 @media (max-width: 640px) {
   #ui-panel {
-    left: 10px;
-    right: 10px;
+    left: calc(10px * var(--ui-size-scale));
+    right: calc(10px * var(--ui-size-scale));
     min-width: unset;
   }
 }
