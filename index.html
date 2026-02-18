@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>260215_AirflowShaper</title>
+    <script type="module" crossorigin src="./assets/index-B94ksP3d.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/three-core-qRc6AwJP.js">
+    <link rel="modulepreload" crossorigin href="./assets/three-extras-H9MAW5Bt.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-CftmWIuZ.css">
+  </head>
+  <body>
+    <div id="ui-panel">
+      <div id="ui-handle">
+        <button
+          type="button"
+          id="collapse-toggle"
+          class="collapse-button"
+          aria-label="Collapse controls"
+          aria-expanded="true"
+        >
+          <span class="collapse-icon">v</span>
+        </button>
+      </div>
+      <div class="ui-body">
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Simulation</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <button type="button" id="play-sim" class="pill-button">Play</button>
+            </div>
+            <div class="control">
+              <button type="button" id="pause-sim" class="pill-button">Pause</button>
+            </div>
+            <div class="control">
+              <button type="button" id="restart-sim" class="pill-button">Restart</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Display</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <div class="control-row">
+                <span>Blur Flow</span>
+                <label class="switch">
+                  <input type="checkbox" id="smoke-display" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+            <label class="control">
+              <div class="control-row">
+                <span>Flow Color</span>
+              </div>
+              <input type="color" id="path-color" class="color-input" value="#1100ff" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Impact Color</span>
+              </div>
+              <input type="color" id="obstructed-color" class="color-input" value="#ff8552" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Emitter</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <label class="control">
+              <div class="control-row">
+                <span>Density X</span>
+                <span id="density-x-value">20</span>
+              </div>
+              <input type="range" id="density-x" min="1" max="70" step="1" value="20" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Density Y</span>
+                <span id="density-y-value">12</span>
+              </div>
+              <input type="range" id="density-y" min="1" max="70" step="1" value="12" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Flow</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <label class="control">
+              <div class="control-row">
+                <span>Flow Speed</span>
+                <span id="flow-speed-value">5.00</span>
+              </div>
+              <input type="range" id="flow-speed" min="0.1" max="10" step="0.01" value="5" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Flow Length</span>
+                <span id="flow-length-value">6.00</span>
+              </div>
+              <input type="range" id="flow-length" min="0.1" max="10" step="0.01" value="6" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Impact Recovery</span>
+                <span id="recovery-length-value">1.00</span>
+              </div>
+              <input type="range" id="recovery-length" min="0.1" max="20" step="0.1" value="1" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Impact Buffer</span>
+                <span id="impact-buffer-value">0.10</span>
+              </div>
+              <input type="range" id="impact-buffer" min="0.05" max="5" step="0.01" value="0.1" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Impact Turbulance</span>
+                <span id="turbulence-value">0.00</span>
+              </div>
+              <input type="range" id="turbulence-strength" min="0" max="2" step="0.01" value="0" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Obstacles</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <button type="button" id="add-plane" class="pill-button">Add Plane</button>
+            </div>
+            <div class="control">
+              <button type="button" id="add-box" class="pill-button">Add Box</button>
+            </div>
+            <div class="control">
+              <button type="button" id="add-sphere" class="pill-button">Add Sphere</button>
+            </div>
+            <div class="control">
+              <button type="button" id="add-pyramid" class="pill-button">Add Pyramid</button>
+            </div>
+            <div class="control">
+              <button type="button" id="add-torus" class="pill-button">Add Torus</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="ui-handle-bottom"></div>
+    </div>
+    <canvas id="app-canvas"></canvas>
+  </body>
+</html>
