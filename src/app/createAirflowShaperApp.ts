@@ -483,7 +483,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       1 + ((this.obstacleCounter % 3) - 1) * 0.35,
       -0.5 + this.obstacleCounter * 0.5,
     );
-    entity.transformObject.rotation.set(0, (this.obstacleCounter * Math.PI) / 14, 0);
+    entity.transformObject.rotation.set(0, 0, 0);
 
     this.scene.add(entity.transformObject);
     this.planeEntities.set(id, entity);
