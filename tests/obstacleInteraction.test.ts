@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
-import { applyObstacleInteraction, createObstacleFieldData } from '../src/core/obstacleInteraction';
+import { Mesh, MeshBasicMaterial, SphereGeometry, Vector3 } from 'three';
+import {
+  applyObstacleInteraction,
+  createObstacleFieldData,
+  updateObstacleFieldDataFromObject,
+} from '../src/core/obstacleInteraction';
 
 describe('obstacleInteraction', () => {
   it('prevents inward penetration and removes normal velocity', () => {
@@ -84,5 +88,26 @@ describe('obstacleInteraction', () => {
     const lateralAfter = velocity.clone().addScaledVector(flowDirection, -velocity.dot(flowDirection)).length();
 
     expect(lateralAfter).toBeLessThan(lateralBefore);
+  });
+
+  it('respects non-uniform scale when evaluating obstacle proximity', () => {
+    const sphere = new Mesh(new SphereGeometry(0.5, 10, 8), new MeshBasicMaterial());
+    sphere.userData.obstacleShape = 'sphere';
+    sphere.userData.obstacleParams = { radius: 0.5 };
+    sphere.scale.set(2, 0.6, 1);
+    sphere.updateMatrixWorld(true);
+
+    const obstacle = createObstacleFieldData();
+    updateObstacleFieldDataFromObject(sphere, 0.1, 0, obstacle);
+
+    const flowDirection = new Vector3(0, 0, 1);
+    const velocityA = new Vector3(0, 0, 0);
+    const velocityB = new Vector3(0, 0, 0);
+
+    const nearAlongWideAxis = applyObstacleInteraction(new Vector3(0.92, 0, 0), velocityA, obstacle, flowDirection, 0, 0.3, 0);
+    const nearAlongTightAxis = applyObstacleInteraction(new Vector3(0, 0.55, 0), velocityB, obstacle, flowDirection, 0, 0.3, 0);
+
+    expect(nearAlongWideAxis).toBe(true);
+    expect(nearAlongTightAxis).toBe(false);
   });
 });

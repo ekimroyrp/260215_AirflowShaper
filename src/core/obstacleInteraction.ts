@@ -1,4 +1,4 @@
-import { Object3D, Quaternion, Vector3 } from 'three';
+import { Matrix3, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
 import { computeWakeDecay, sampleCurlNoise } from './flowField';
 
 export type ObstacleShapeKind = 'plane' | 'box' | 'sphere' | 'pyramid' | 'torus';
@@ -9,6 +9,12 @@ export interface ObstacleFieldData {
   normal: Vector3;
   xAxis: Vector3;
   yAxis: Vector3;
+  worldMatrix: Matrix4;
+  inverseWorldMatrix: Matrix4;
+  worldNormalMatrix: Matrix3;
+  scaleX: number;
+  scaleY: number;
+  scaleZ: number;
   halfWidth: number;
   halfHeight: number;
   halfDepth: number;
@@ -27,6 +33,12 @@ export function createObstacleFieldData(): ObstacleFieldData {
     normal: new Vector3(0, 0, 1),
     xAxis: new Vector3(1, 0, 0),
     yAxis: new Vector3(0, 1, 0),
+    worldMatrix: new Matrix4(),
+    inverseWorldMatrix: new Matrix4(),
+    worldNormalMatrix: new Matrix3(),
+    scaleX: 1,
+    scaleY: 1,
+    scaleZ: 1,
     halfWidth: 0.5,
     halfHeight: 0.5,
     halfDepth: 0.01,
@@ -46,6 +58,8 @@ const signedDeltaScratch = new Vector3();
 const surfaceNormalLocalScratch = new Vector3();
 const surfaceNormalWorldScratch = new Vector3();
 const nearestLocalScratch = new Vector3();
+const nearestWorldScratch = new Vector3();
+const localPositionScratch = new Vector3();
 
 export function updateObstacleFieldDataFromObject(
   object: Object3D,
@@ -53,9 +67,13 @@ export function updateObstacleFieldDataFromObject(
   wakeStrength: number,
   target: ObstacleFieldData,
 ): ObstacleFieldData {
+  object.updateMatrixWorld(true);
   object.getWorldPosition(target.center);
   object.getWorldScale(worldScaleScratch);
   object.getWorldQuaternion(worldQuaternionScratch);
+  target.worldMatrix.copy(object.matrixWorld);
+  target.inverseWorldMatrix.copy(object.matrixWorld).invert();
+  target.worldNormalMatrix.getNormalMatrix(object.matrixWorld);
 
   const userShape = object.userData?.obstacleShape;
   target.shapeKind =
@@ -73,12 +91,18 @@ export function updateObstacleFieldDataFromObject(
   const absScaleX = Math.max(1e-4, Math.abs(worldScaleScratch.x));
   const absScaleY = Math.max(1e-4, Math.abs(worldScaleScratch.y));
   const absScaleZ = Math.max(1e-4, Math.abs(worldScaleScratch.z));
+  target.scaleX = absScaleX;
+  target.scaleY = absScaleY;
+  target.scaleZ = absScaleZ;
 
-  target.halfWidth = Math.max(1e-4, localSize.x * absScaleX * 0.5);
-  target.halfHeight = Math.max(1e-4, localSize.y * absScaleY * 0.5);
-  target.halfDepth = Math.max(1e-4, localSize.z * absScaleZ * 0.5);
+  target.halfWidth = Math.max(1e-4, localSize.x * 0.5);
+  target.halfHeight = Math.max(1e-4, localSize.y * 0.5);
+  target.halfDepth = Math.max(1e-4, localSize.z * 0.5);
+  const worldHalfWidth = target.halfWidth * absScaleX;
+  const worldHalfHeight = target.halfHeight * absScaleY;
+  const worldHalfDepth = target.halfDepth * absScaleZ;
   target.boundingRadius = Math.sqrt(
-    target.halfWidth * target.halfWidth + target.halfHeight * target.halfHeight + target.halfDepth * target.halfDepth,
+    worldHalfWidth * worldHalfWidth + worldHalfHeight * worldHalfHeight + worldHalfDepth * worldHalfDepth,
   );
 
   const params = object.userData?.obstacleParams as Partial<{
@@ -86,10 +110,9 @@ export function updateObstacleFieldDataFromObject(
     majorRadius: number;
     minorRadius: number;
   }> | undefined;
-  const avgScale = (absScaleX + absScaleY + absScaleZ) / 3;
-  target.sphereRadius = Math.max(1e-4, (params?.radius ?? Math.max(target.halfWidth, target.halfHeight, target.halfDepth)) * avgScale);
-  target.torusMajorRadius = Math.max(1e-4, (params?.majorRadius ?? 0.34) * ((absScaleX + absScaleY) * 0.5));
-  target.torusMinorRadius = Math.max(1e-4, (params?.minorRadius ?? 0.16) * avgScale);
+  target.sphereRadius = Math.max(1e-4, params?.radius ?? Math.max(localSize.x, localSize.y, localSize.z) * 0.5);
+  target.torusMajorRadius = Math.max(1e-4, params?.majorRadius ?? 0.34);
+  target.torusMinorRadius = Math.max(1e-4, params?.minorRadius ?? 0.16);
   target.influenceRadius = influenceRadius;
   target.wakeStrength = wakeStrength;
   return target;
@@ -116,15 +139,25 @@ function computeLocalSurfaceDistanceAndNormal(
 ): number {
   if (shapeKind === 'sphere') {
     const radius = Math.max(1e-4, obstacle.sphereRadius);
-    const distance = Math.sqrt(localX * localX + localY * localY + localZ * localZ);
-    if (distance > 1e-6) {
-      surfaceNormalLocalScratch.set(localX / distance, localY / distance, localZ / distance);
-      nearestLocalScratch.copy(surfaceNormalLocalScratch).multiplyScalar(radius);
+    const invRadiusSq = 1 / (radius * radius);
+    const f = (localX * localX + localY * localY + localZ * localZ) * invRadiusSq - 1;
+
+    const gx = 2 * localX * invRadiusSq;
+    const gy = 2 * localY * invRadiusSq;
+    const gz = 2 * localZ * invRadiusSq;
+    const gradLength = Math.sqrt(gx * gx + gy * gy + gz * gz);
+    if (gradLength > 1e-6) {
+      surfaceNormalLocalScratch.set(gx / gradLength, gy / gradLength, gz / gradLength);
     } else {
       surfaceNormalLocalScratch.set(0, 0, 1);
-      nearestLocalScratch.set(0, 0, radius);
     }
-    return distance - radius;
+    const signedDistance = gradLength > 1e-6 ? f / gradLength : radius;
+    nearestLocalScratch.set(
+      localX - surfaceNormalLocalScratch.x * signedDistance,
+      localY - surfaceNormalLocalScratch.y * signedDistance,
+      localZ - surfaceNormalLocalScratch.z * signedDistance,
+    );
+    return signedDistance;
   }
 
   if (shapeKind === 'torus') {
@@ -249,18 +282,17 @@ export function applyObstacleInteraction(
 ): boolean {
   toCenterScratch.copy(position).sub(obstacle.center);
 
-  const localX = toCenterScratch.dot(obstacle.xAxis);
-  const localY = toCenterScratch.dot(obstacle.yAxis);
-  const localZ = toCenterScratch.dot(obstacle.normal);
+  localPositionScratch.copy(position).applyMatrix4(obstacle.inverseWorldMatrix);
+  const localX = localPositionScratch.x;
+  const localY = localPositionScratch.y;
+  const localZ = localPositionScratch.z;
   const influence = Math.max(0.01, obstacle.influenceRadius);
-  const signedDistance = computeLocalSurfaceDistanceAndNormal(obstacle.shapeKind, localX, localY, localZ, obstacle);
+  computeLocalSurfaceDistanceAndNormal(obstacle.shapeKind, localX, localY, localZ, obstacle);
+  surfaceNormalWorldScratch.copy(surfaceNormalLocalScratch).applyMatrix3(obstacle.worldNormalMatrix).normalize();
+  nearestWorldScratch.copy(nearestLocalScratch).applyMatrix4(obstacle.worldMatrix);
+  signedDeltaScratch.copy(position).sub(nearestWorldScratch);
+  const signedDistance = signedDeltaScratch.dot(surfaceNormalWorldScratch);
   const nearSurface = signedDistance <= influence;
-  surfaceNormalWorldScratch
-    .copy(obstacle.xAxis)
-    .multiplyScalar(surfaceNormalLocalScratch.x)
-    .addScaledVector(obstacle.yAxis, surfaceNormalLocalScratch.y)
-    .addScaledVector(obstacle.normal, surfaceNormalLocalScratch.z)
-    .normalize();
 
   if (nearSurface) {
     const barrierThickness = Math.min(0.05, influence * 0.35);
@@ -300,10 +332,22 @@ export function applyObstacleInteraction(
   const lateralDistance = lateralScratch.length();
   const wakeRadius =
     obstacle.shapeKind === 'torus'
-      ? obstacle.torusMajorRadius + obstacle.torusMinorRadius + influence
+      ? Math.max(
+          (obstacle.torusMajorRadius + obstacle.torusMinorRadius) * obstacle.scaleX,
+          (obstacle.torusMajorRadius + obstacle.torusMinorRadius) * obstacle.scaleY,
+          obstacle.torusMinorRadius * obstacle.scaleZ,
+        ) + influence
       : obstacle.shapeKind === 'sphere'
-        ? obstacle.sphereRadius + influence
-        : Math.max(obstacle.halfWidth, obstacle.halfHeight, obstacle.halfDepth) + influence;
+        ? Math.max(
+            obstacle.sphereRadius * obstacle.scaleX,
+            obstacle.sphereRadius * obstacle.scaleY,
+            obstacle.sphereRadius * obstacle.scaleZ,
+          ) + influence
+        : Math.max(
+            obstacle.halfWidth * obstacle.scaleX,
+            obstacle.halfHeight * obstacle.scaleY,
+            obstacle.halfDepth * obstacle.scaleZ,
+          ) + influence;
   const wakeFactor = computeWakeDecay(downstream, lateralDistance, wakeRadius);
   if (wakeFactor <= 1e-5) {
     return nearSurface;
