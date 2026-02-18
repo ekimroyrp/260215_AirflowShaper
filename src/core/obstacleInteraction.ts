@@ -302,7 +302,11 @@ export function applyObstacleInteraction(
     }
 
     const normalComponent = velocity.dot(surfaceNormalWorldScratch);
-    velocity.addScaledVector(surfaceNormalWorldScratch, -normalComponent);
+    if (normalComponent < 0) {
+      // Only remove inward motion. Outward normal velocity helps particles
+      // leave the obstacle and prevents trailing-side stagnation.
+      velocity.addScaledVector(surfaceNormalWorldScratch, -normalComponent);
+    }
 
     radialScratch.copy(toCenterScratch).addScaledVector(surfaceNormalWorldScratch, -toCenterScratch.dot(surfaceNormalWorldScratch));
     if (radialScratch.lengthSq() > 1e-6) {
@@ -318,6 +322,20 @@ export function applyObstacleInteraction(
     if (flowTangentScratch.lengthSq() > 1e-6) {
       flowTangentScratch.normalize();
       velocity.addScaledVector(flowTangentScratch, 0.35 * (1 - forwardPull));
+    }
+
+    // Prevent trailing-side stagnation at larger impact buffers by guaranteeing
+    // a minimum downstream component after contact.
+    if (obstacle.shapeKind !== 'plane') {
+      const trailingFactor = clamp(surfaceNormalWorldScratch.dot(flowDirection), 0, 1);
+      const releaseBlend = (1 - forwardPull) * trailingFactor;
+      if (releaseBlend > 1e-4) {
+        const minForward = 0.75 * releaseBlend;
+        const currentForward = velocity.dot(flowDirection);
+        if (currentForward < minForward) {
+          velocity.addScaledVector(flowDirection, minForward - currentForward);
+        }
+      }
     }
   }
 

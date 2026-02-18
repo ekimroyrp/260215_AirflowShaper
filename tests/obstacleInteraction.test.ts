@@ -110,4 +110,41 @@ describe('obstacleInteraction', () => {
     expect(nearAlongWideAxis).toBe(true);
     expect(nearAlongTightAxis).toBe(false);
   });
+
+  it('keeps particles moving forward on trailing side with larger impact buffers', () => {
+    const sphere = new Mesh(new SphereGeometry(0.5, 14, 10), new MeshBasicMaterial());
+    sphere.userData.obstacleShape = 'sphere';
+    sphere.userData.obstacleParams = { radius: 0.5 };
+    sphere.updateMatrixWorld(true);
+
+    const obstacle = createObstacleFieldData();
+    updateObstacleFieldDataFromObject(sphere, 0.6, 0, obstacle);
+
+    const flowDirection = new Vector3(0, 0, 1);
+    const position = new Vector3(0, 0, 0.7);
+    const velocity = new Vector3(0, 0, 0);
+
+    const nearSurface = applyObstacleInteraction(position, velocity, obstacle, flowDirection, 0, 0.3, 0);
+    expect(nearSurface).toBe(true);
+    expect(velocity.dot(flowDirection)).toBeGreaterThan(0.05);
+  });
+
+  it('preserves outward normal velocity so particles can leave surfaces', () => {
+    const obstacle = createObstacleFieldData();
+    obstacle.center.set(0, 0, 0);
+    obstacle.normal.set(0, 0, 1);
+    obstacle.xAxis.set(1, 0, 0);
+    obstacle.yAxis.set(0, 1, 0);
+    obstacle.halfWidth = 1;
+    obstacle.halfHeight = 1;
+    obstacle.influenceRadius = 0.6;
+    obstacle.wakeStrength = 0;
+
+    const position = new Vector3(0, 0, 0.03);
+    const velocity = new Vector3(0, 0, 0.9);
+    const flowDirection = new Vector3(0, 0, 1);
+
+    applyObstacleInteraction(position, velocity, obstacle, flowDirection, 0, 0.3, 0);
+    expect(velocity.z).toBeGreaterThan(0.4);
+  });
 });

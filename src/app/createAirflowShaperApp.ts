@@ -167,7 +167,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     turbulenceStrength: 0,
     turbulenceScale: 0.35,
     recoveryLength: 1,
-    obstacleInfluenceRadius: 0.05,
+    obstacleInfluenceRadius: 0.1,
     wakeStrength: 1.05,
   };
 
@@ -181,7 +181,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     obstructedColor: DEFAULT_OBSTRUCTED_COLOR,
     turbulence: 0,
     recoveryLength: 1,
-    impactBuffer: 0.05,
+    impactBuffer: 0.1,
   };
 
   private readonly particleSystem: ParticleTrailSystem;
