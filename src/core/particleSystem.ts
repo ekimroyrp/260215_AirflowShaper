@@ -1,6 +1,8 @@
 import {
+  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
+  CanvasTexture,
   Color,
   ColorRepresentation,
   DynamicDrawUsage,
@@ -36,13 +38,22 @@ export class ParticleTrailSystem {
   readonly trailGeometry: BufferGeometry;
   readonly trailMaterial: LineBasicMaterial;
   readonly trailsMesh: LineSegments;
+  readonly smokeGeometry: BufferGeometry;
+  readonly smokeMaterial: PointsMaterial;
+  readonly smokePoints: Points;
 
   private readonly trailSegments: Float32Array;
   private readonly trailSegmentColors: Float32Array;
+  private readonly smokePositions: Float32Array;
+  private readonly smokeColors: Float32Array;
   private readonly positionAttribute: BufferAttribute;
   private readonly pointColorAttribute: BufferAttribute;
   private readonly trailAttribute: BufferAttribute;
   private readonly trailColorAttribute: BufferAttribute;
+  private readonly smokePositionAttribute: BufferAttribute;
+  private readonly smokeColorAttribute: BufferAttribute;
+  private readonly smokeSpriteTexture: CanvasTexture | null;
+  private smokeDisplayEnabled = false;
 
   constructor(options: ParticleSystemOptions) {
     this.maxParticles = Math.max(1, Math.round(options.maxParticles));
@@ -56,6 +67,8 @@ export class ParticleTrailSystem {
     this.trailColorHistory = new Float32Array(this.maxParticles * this.trailLength * 3);
     this.trailSegments = new Float32Array(this.maxParticles * (this.trailLength - 1) * 2 * 3);
     this.trailSegmentColors = new Float32Array(this.maxParticles * (this.trailLength - 1) * 2 * 3);
+    this.smokePositions = new Float32Array(this.maxParticles * this.trailLength * 3);
+    this.smokeColors = new Float32Array(this.maxParticles * this.trailLength * 3);
 
     const defaultPointColor = new Color(options.particleColor ?? 0xe5f6ff);
     const defaultTrailColor = new Color(options.trailColor ?? options.particleColor ?? 0x63d2ff);
@@ -73,6 +86,7 @@ export class ParticleTrailSystem {
         this.trailColorHistory[write + 2] = defaultTrailColor.b;
       }
     }
+    this.smokeColors.set(this.trailColorHistory);
 
     this.pointsGeometry = new BufferGeometry();
     this.positionAttribute = new BufferAttribute(this.positions, 3);
@@ -110,16 +124,47 @@ export class ParticleTrailSystem {
     });
     this.trailsMesh = new LineSegments(this.trailGeometry, this.trailMaterial);
     this.trailsMesh.renderOrder = 3;
+
+    this.smokeGeometry = new BufferGeometry();
+    this.smokePositionAttribute = new BufferAttribute(this.smokePositions, 3);
+    this.smokePositionAttribute.setUsage(DynamicDrawUsage);
+    this.smokeGeometry.setAttribute('position', this.smokePositionAttribute);
+    this.smokeColorAttribute = new BufferAttribute(this.smokeColors, 3);
+    this.smokeColorAttribute.setUsage(DynamicDrawUsage);
+    this.smokeGeometry.setAttribute('color', this.smokeColorAttribute);
+
+    this.smokeSpriteTexture = createSmokeSpriteTexture();
+    const smokeMaterialOptions: ConstructorParameters<typeof PointsMaterial>[0] = {
+      color: 0xffffff,
+      size: (options.particleSize ?? 0.03) * 7,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      vertexColors: true,
+      blending: AdditiveBlending,
+    };
+    if (this.smokeSpriteTexture) {
+      smokeMaterialOptions.map = this.smokeSpriteTexture;
+      smokeMaterialOptions.alphaMap = this.smokeSpriteTexture;
+      smokeMaterialOptions.alphaTest = 0.02;
+    }
+    this.smokeMaterial = new PointsMaterial(smokeMaterialOptions);
+    this.smokePoints = new Points(this.smokeGeometry, this.smokeMaterial);
+    this.smokePoints.renderOrder = 2;
+    this.smokePoints.visible = false;
   }
 
   attach(scene: Scene): void {
     scene.add(this.trailsMesh);
     scene.add(this.points);
+    scene.add(this.smokePoints);
   }
 
   detach(scene: Scene): void {
     scene.remove(this.trailsMesh);
     scene.remove(this.points);
+    scene.remove(this.smokePoints);
   }
 
   dispose(): void {
@@ -127,6 +172,16 @@ export class ParticleTrailSystem {
     this.pointsMaterial.dispose();
     this.trailGeometry.dispose();
     this.trailMaterial.dispose();
+    this.smokeGeometry.dispose();
+    this.smokeMaterial.dispose();
+    this.smokeSpriteTexture?.dispose();
+  }
+
+  setSmokeDisplay(enabled: boolean): void {
+    this.smokeDisplayEnabled = enabled;
+    this.points.visible = !enabled;
+    this.trailsMesh.visible = !enabled;
+    this.smokePoints.visible = enabled;
   }
 
   setParticleColor(index: number, r: number, g: number, b: number): void {
@@ -225,6 +280,12 @@ export class ParticleTrailSystem {
     this.refreshTrailSegmentsFromHistory();
     this.trailAttribute.needsUpdate = true;
     this.trailColorAttribute.needsUpdate = true;
+    if (this.smokeDisplayEnabled) {
+      this.refreshSmokePointsFromHistory();
+      this.smokePositionAttribute.needsUpdate = true;
+      this.smokeColorAttribute.needsUpdate = true;
+      this.smokeGeometry.computeBoundingSphere();
+    }
     this.pointsGeometry.computeBoundingSphere();
     this.trailGeometry.computeBoundingSphere();
   }
@@ -253,4 +314,36 @@ export class ParticleTrailSystem {
       }
     }
   }
+
+  private refreshSmokePointsFromHistory(): void {
+    this.smokePositions.set(this.trails);
+    this.smokeColors.set(this.trailColorHistory);
+  }
+}
+
+function createSmokeSpriteTexture(): CanvasTexture | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return null;
+  }
+
+  const radius = size * 0.5;
+  const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+  gradient.addColorStop(0.45, 'rgba(255, 255, 255, 0.35)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  const texture = new CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
 }

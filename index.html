@@ -39,6 +39,36 @@
 
         <div class="panel-section">
           <button type="button" class="panel-heading" aria-expanded="true">
+            <span>Display</span>
+            <span class="panel-chevron">v</span>
+          </button>
+          <div class="panel-content">
+            <div class="control">
+              <div class="control-row">
+                <span>Blur Flow</span>
+                <label class="switch">
+                  <input type="checkbox" id="smoke-display" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+            <label class="control">
+              <div class="control-row">
+                <span>Flow Color</span>
+              </div>
+              <input type="color" id="path-color" class="color-input" value="#1100ff" />
+            </label>
+            <label class="control">
+              <div class="control-row">
+                <span>Impact Color</span>
+              </div>
+              <input type="color" id="obstructed-color" class="color-input" value="#ff8552" />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <button type="button" class="panel-heading" aria-expanded="true">
             <span>Emitter</span>
             <span class="panel-chevron">v</span>
           </button>
@@ -100,18 +130,6 @@
                 <span id="turbulence-value">0.00</span>
               </div>
               <input type="range" id="turbulence-strength" min="0" max="2" step="0.01" value="0" />
-            </label>
-            <label class="control">
-              <div class="control-row">
-                <span>Flow Color</span>
-              </div>
-              <input type="color" id="path-color" class="color-input" value="#1100ff" />
-            </label>
-            <label class="control">
-              <div class="control-row">
-                <span>Impact Color</span>
-              </div>
-              <input type="color" id="obstructed-color" class="color-input" value="#ff8552" />
             </label>
           </div>
         </div>

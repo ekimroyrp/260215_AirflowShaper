@@ -74,6 +74,7 @@ interface UiState {
   turbulence: number;
   recoveryLength: number;
   impactBuffer: number;
+  smokeDisplay: boolean;
 }
 
 interface UiElements {
@@ -101,6 +102,7 @@ interface UiElements {
   recoveryLengthValue: HTMLSpanElement;
   impactBufferRange: HTMLInputElement;
   impactBufferValue: HTMLSpanElement;
+  smokeDisplayToggle: HTMLInputElement;
   densityXRange: HTMLInputElement;
   densityXValue: HTMLSpanElement;
   densityYRange: HTMLInputElement;
@@ -182,6 +184,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     turbulence: 0,
     recoveryLength: 1,
     impactBuffer: 0.1,
+    smokeDisplay: false,
   };
 
   private readonly particleSystem: ParticleTrailSystem;
@@ -643,7 +646,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     }
 
     if (this.selectedPlaneId === id) {
-      this.selectPlane(this.emitterId);
+      this.selectPlane(null);
     }
   }
 
@@ -744,6 +747,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const recoveryLengthValue = document.getElementById('recovery-length-value');
     const impactBufferRange = document.getElementById('impact-buffer');
     const impactBufferValue = document.getElementById('impact-buffer-value');
+    const smokeDisplayToggle = document.getElementById('smoke-display');
     const densityXRange = document.getElementById('density-x');
     const densityXValue = document.getElementById('density-x-value');
     const densityYRange = document.getElementById('density-y');
@@ -774,6 +778,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       !(recoveryLengthValue instanceof HTMLSpanElement) ||
       !(impactBufferRange instanceof HTMLInputElement) ||
       !(impactBufferValue instanceof HTMLSpanElement) ||
+      !(smokeDisplayToggle instanceof HTMLInputElement) ||
       !(densityXRange instanceof HTMLInputElement) ||
       !(densityXValue instanceof HTMLSpanElement) ||
       !(densityYRange instanceof HTMLInputElement) ||
@@ -807,6 +812,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       recoveryLengthValue,
       impactBufferRange,
       impactBufferValue,
+      smokeDisplayToggle,
       densityXRange,
       densityXValue,
       densityYRange,
@@ -842,6 +848,8 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
 
     this.uiElements.pathColorInput.value = this.uiState.pathColor;
     this.uiElements.obstructedColorInput.value = this.uiState.obstructedColor;
+    this.uiElements.smokeDisplayToggle.checked = this.uiState.smokeDisplay;
+    this.particleSystem.setSmokeDisplay(this.uiState.smokeDisplay);
     this.syncParticleGradientEndpoints();
 
     this.addDomListener(this.uiElements.pathColorInput, 'input', () => {
@@ -854,6 +862,12 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       this.uiState.obstructedColor = this.uiElements.obstructedColorInput.value;
       this.syncParticleGradientEndpoints();
       this.pendingTrailGradientRecolor = true;
+    });
+
+    this.addDomListener(this.uiElements.smokeDisplayToggle, 'change', () => {
+      this.uiState.smokeDisplay = this.uiElements.smokeDisplayToggle.checked;
+      this.particleSystem.setSmokeDisplay(this.uiState.smokeDisplay);
+      this.particleSystem.refreshGpuBuffers();
     });
 
     this.bindRangeControl(
