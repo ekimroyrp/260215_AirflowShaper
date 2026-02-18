@@ -1,8 +1,10 @@
 import {
   ACESFilmicToneMapping,
   AmbientLight,
+  BoxGeometry,
   BufferGeometry,
   Color,
+  ConeGeometry,
   DirectionalLight,
   DoubleSide,
   EdgesGeometry,
@@ -17,6 +19,8 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   PMREMGenerator,
+  SphereGeometry,
+  TorusGeometry,
   Quaternion,
   Raycaster,
   Scene,
@@ -48,6 +52,7 @@ import {
   updateObstacleFieldDataFromObject,
 } from '../core/obstacleInteraction';
 import type { AirflowShaperApp, EmitterConfig, FlowConfig, PlaybackState, SimObjectKind } from '../types';
+import type { ObstacleShapeKind } from '../core/obstacleInteraction';
 
 interface PlaneEntity {
   id: string;
@@ -55,7 +60,7 @@ interface PlaneEntity {
   transformObject: Object3D;
   scaleProxy: Object3D;
   object: Object3D;
-  mesh: Mesh<PlaneGeometry, MeshStandardMaterial>;
+  mesh: Mesh<BufferGeometry, MeshStandardMaterial>;
   outline: LineSegments;
 }
 
@@ -80,6 +85,10 @@ interface UiElements {
   pauseButton: HTMLButtonElement;
   restartButton: HTMLButtonElement;
   addPlaneButton: HTMLButtonElement;
+  addBoxButton: HTMLButtonElement;
+  addSphereButton: HTMLButtonElement;
+  addPyramidButton: HTMLButtonElement;
+  addTorusButton: HTMLButtonElement;
   flowSpeedRange: HTMLInputElement;
   flowSpeedValue: HTMLSpanElement;
   flowLengthRange: HTMLInputElement;
@@ -294,24 +303,65 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   addObstaclePlane(): string {
     const id = `obstacle-${++this.obstacleCounter}`;
     const entity = this.createPlaneEntity(id, 'obstacle', 0x5f738a, 1, 1, 1, 1);
-    entity.transformObject.position.set(
-      ((this.obstacleCounter % 5) - 2) * 1.1,
-      1 + ((this.obstacleCounter % 3) - 1) * 0.35,
-      -0.5 + this.obstacleCounter * 0.5,
-    );
-    entity.transformObject.rotation.set(0, (this.obstacleCounter * Math.PI) / 14, 0);
     entity.scaleProxy.scale.set(1.8, 0.95, 1);
-    this.scene.add(entity.transformObject);
-    this.planeEntities.set(id, entity);
-    this.selectable.add(entity.mesh);
+    this.registerObstacleEntity(id, entity);
+    return id;
+  }
 
-    const runtime: ObstacleRuntime = {
-      id,
-      data: createObstacleFieldData(),
-    };
-    this.obstacleRuntimes.push(runtime);
+  private addObstacleBox(): string {
+    const id = `obstacle-${++this.obstacleCounter}`;
+    const width = 1;
+    const height = 0.62;
+    const depth = 0.62;
+    const geometry = new BoxGeometry(width, height, depth, 1, 1, 1);
+    const entity = this.createObstacleEntity(id, 'box', geometry, {
+      width,
+      height,
+      depth,
+    });
+    entity.scaleProxy.scale.set(1.2, 1, 1);
+    this.registerObstacleEntity(id, entity);
+    return id;
+  }
 
-    this.selectPlane(id);
+  private addObstacleSphere(): string {
+    const id = `obstacle-${++this.obstacleCounter}`;
+    const radius = 0.5;
+    const geometry = new SphereGeometry(radius, 20, 14);
+    const entity = this.createObstacleEntity(id, 'sphere', geometry, {
+      radius,
+    });
+    entity.scaleProxy.scale.set(1.05, 1.05, 1);
+    this.registerObstacleEntity(id, entity);
+    return id;
+  }
+
+  private addObstaclePyramid(): string {
+    const id = `obstacle-${++this.obstacleCounter}`;
+    const radius = 0.5;
+    const height = 1;
+    const geometry = new ConeGeometry(radius, height, 4, 1);
+    geometry.rotateX(Math.PI * 0.5);
+    const entity = this.createObstacleEntity(id, 'pyramid', geometry, {
+      radius,
+      height,
+    });
+    entity.scaleProxy.scale.set(1.05, 1.05, 1);
+    this.registerObstacleEntity(id, entity);
+    return id;
+  }
+
+  private addObstacleTorus(): string {
+    const id = `obstacle-${++this.obstacleCounter}`;
+    const majorRadius = 0.34;
+    const minorRadius = 0.16;
+    const geometry = new TorusGeometry(majorRadius, minorRadius, 14, 28);
+    const entity = this.createObstacleEntity(id, 'torus', geometry, {
+      majorRadius,
+      minorRadius,
+    });
+    entity.scaleProxy.scale.set(1.15, 1.15, 1);
+    this.registerObstacleEntity(id, entity);
     return id;
   }
 
@@ -427,6 +477,65 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.rebuildEmitterGeometry();
   }
 
+  private registerObstacleEntity(id: string, entity: PlaneEntity): void {
+    entity.transformObject.position.set(
+      ((this.obstacleCounter % 5) - 2) * 1.1,
+      1 + ((this.obstacleCounter % 3) - 1) * 0.35,
+      -0.5 + this.obstacleCounter * 0.5,
+    );
+    entity.transformObject.rotation.set(0, (this.obstacleCounter * Math.PI) / 14, 0);
+
+    this.scene.add(entity.transformObject);
+    this.planeEntities.set(id, entity);
+    this.selectable.add(entity.mesh);
+    this.obstacleRuntimes.push({ id, data: createObstacleFieldData() });
+    this.selectPlane(id);
+  }
+
+  private createObstacleEntity(
+    id: string,
+    shapeKind: ObstacleShapeKind,
+    geometry: BufferGeometry,
+    shapeParams: Record<string, number>,
+  ): PlaneEntity {
+    const transformObject = new Object3D();
+    const scaleProxy = new Object3D();
+    scaleProxy.scale.set(1, 1, 1);
+
+    const object = new Object3D();
+    const material = new MeshStandardMaterial({
+      color: OBSTACLE_BASE_COLOR,
+      roughness: 0.55,
+      metalness: 0.05,
+      transparent: true,
+      opacity: 0.38,
+      side: DoubleSide,
+    });
+
+    const mesh = new Mesh(geometry, material);
+    mesh.userData.planeId = id;
+    mesh.userData.obstacleShape = shapeKind;
+    mesh.userData.obstacleParams = shapeParams;
+
+    const outlineMaterial = new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
+    const outline = new LineSegments(new EdgesGeometry(geometry), outlineMaterial);
+
+    object.add(mesh);
+    object.add(outline);
+    scaleProxy.add(object);
+    transformObject.add(scaleProxy);
+
+    return {
+      id,
+      kind: 'obstacle',
+      transformObject,
+      scaleProxy,
+      object,
+      mesh,
+      outline,
+    };
+  }
+
   private createPlaneEntity(
     id: string,
     kind: SimObjectKind,
@@ -453,6 +562,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
 
     const mesh = new Mesh(geometry, material);
     mesh.userData.planeId = id;
+    if (kind === 'obstacle') {
+      mesh.userData.obstacleShape = 'plane';
+      mesh.userData.obstacleParams = { width: 1, height: 1, depth: 0 };
+    }
 
     const outlineMaterial = new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
     const outline = new LineSegments(new EdgesGeometry(geometry), outlineMaterial);
@@ -585,7 +698,7 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     entity.scaleProxy.scale.set(
       Math.max(SCALE_EPSILON, Math.abs(entity.scaleProxy.scale.x)),
       Math.max(SCALE_EPSILON, Math.abs(entity.scaleProxy.scale.y)),
-      1,
+      entity.kind === 'emitter' ? 1 : Math.max(SCALE_EPSILON, Math.abs(entity.scaleProxy.scale.z)),
     );
   }
 
@@ -617,6 +730,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     const pauseButton = document.getElementById('pause-sim');
     const restartButton = document.getElementById('restart-sim');
     const addPlaneButton = document.getElementById('add-plane');
+    const addBoxButton = document.getElementById('add-box');
+    const addSphereButton = document.getElementById('add-sphere');
+    const addPyramidButton = document.getElementById('add-pyramid');
+    const addTorusButton = document.getElementById('add-torus');
     const flowSpeedRange = document.getElementById('flow-speed');
     const flowSpeedValue = document.getElementById('flow-speed-value');
     const flowLengthRange = document.getElementById('flow-length');
@@ -643,6 +760,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       !(pauseButton instanceof HTMLButtonElement) ||
       !(restartButton instanceof HTMLButtonElement) ||
       !(addPlaneButton instanceof HTMLButtonElement) ||
+      !(addBoxButton instanceof HTMLButtonElement) ||
+      !(addSphereButton instanceof HTMLButtonElement) ||
+      !(addPyramidButton instanceof HTMLButtonElement) ||
+      !(addTorusButton instanceof HTMLButtonElement) ||
       !(flowSpeedRange instanceof HTMLInputElement) ||
       !(flowSpeedValue instanceof HTMLSpanElement) ||
       !(flowLengthRange instanceof HTMLInputElement) ||
@@ -672,6 +793,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
       pauseButton,
       restartButton,
       addPlaneButton,
+      addBoxButton,
+      addSphereButton,
+      addPyramidButton,
+      addTorusButton,
       flowSpeedRange,
       flowSpeedValue,
       flowLengthRange,
@@ -800,6 +925,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
     this.addDomListener(this.uiElements.pauseButton, 'click', () => this.pause());
     this.addDomListener(this.uiElements.restartButton, 'click', () => this.restart());
     this.addDomListener(this.uiElements.addPlaneButton, 'click', () => this.addObstaclePlane());
+    this.addDomListener(this.uiElements.addBoxButton, 'click', () => this.addObstacleBox());
+    this.addDomListener(this.uiElements.addSphereButton, 'click', () => this.addObstacleSphere());
+    this.addDomListener(this.uiElements.addPyramidButton, 'click', () => this.addObstaclePyramid());
+    this.addDomListener(this.uiElements.addTorusButton, 'click', () => this.addObstacleTorus());
 
     this.setupUiPanelInteractions();
     this.refreshAllRangeProgress();
