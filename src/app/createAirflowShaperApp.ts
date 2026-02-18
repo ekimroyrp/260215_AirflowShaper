@@ -36,11 +36,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   buildEmitterLocalVertices,
   clampDensity,
-  computeSpawnRateFromVertexCount,
   computeEmitterWorldNormal,
   EMITTER_HEIGHT,
   EMITTER_WIDTH,
-  getEmitterVertexCount,
 } from '../core/emitterSampling';
 import { sampleCurlNoise } from '../core/flowField';
 import { ParticleTrailSystem } from '../core/particleSystem';
@@ -135,6 +133,7 @@ const DEFAULT_OBSTRUCTED_COLOR = '#ff8552';
 const OFF_PATH_DISTANCE_FOR_MAX_COLOR = 0.9;
 const FLOW_LENGTH_MIN = 0.1;
 const FLOW_LENGTH_LIFETIME_EXPONENT = 0.5;
+const SPAWN_CYCLE_RATIO_OF_BASE_LIFETIME = 0.65;
 const EMITTER_BASE_COLOR = 0x1b7ea5;
 const EMITTER_SELECTED_COLOR = 0x56ecff;
 const OBSTACLE_BASE_COLOR = 0x5f738a;
@@ -1148,8 +1147,10 @@ class AirflowShaperAppImpl implements AirflowShaperApp {
   }
 
   private updateSpawnRateFromDensity(): void {
-    const vertexCount = getEmitterVertexCount(this.emitterConfig.densityX, this.emitterConfig.densityY);
-    this.emitterConfig.spawnRate = computeSpawnRateFromVertexCount(vertexCount, this.particleSystem.maxParticles);
+    // Density only controls lane sampling on the emitter mesh, not how far
+    // particles travel. Keep spawn cadence independent from density.
+    const cycleSeconds = Math.max(0.2, this.emitterConfig.particleLifetime * SPAWN_CYCLE_RATIO_OF_BASE_LIFETIME);
+    this.emitterConfig.spawnRate = this.particleSystem.maxParticles / cycleSeconds;
   }
 
   private getEffectiveSpawnRate(): number {
