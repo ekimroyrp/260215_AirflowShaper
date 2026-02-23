@@ -42,15 +42,6 @@
   - `Delete` removes selected obstacle
   - `Escape` clears selection
 
-## V1 Validation Checklist
-- Change `Density X`/`Density Y` and confirm emitter spawn lanes get denser/sparser without changing effective flow length.
-- Rotate emitter and confirm flow direction follows emitter normal.
-- Use `Play`, `Pause`, and `Restart` to control simulation state.
-- Add multiple obstacle shapes and verify particles bend/slide around their surfaces.
-- Set `Impact Turbulance` above zero and verify turbulence appears after impact and fades with `Impact Recovery`.
-- Toggle `Blur Flow` and confirm rendering switches between particle/trails and smoke-like display.
-- Use `Restart` and verify old trails clear and new trails start from emitter.
-
 ## Deployment
 - **Local production preview:** `npm install`, then `npm run build` followed by `npm run preview` to inspect the compiled bundle.
 - **Publish to GitHub Pages:** From a clean `main`, run `npm run build -- --base ./`. Checkout (or create) the `gh-pages` branch in a separate worktree/temp clone, copy everything inside `dist/` plus a `.nojekyll` marker to the branch root (and keep minimal static structure such as `assets/`, optional `env/`, `index.html`, and `.gitignore`), commit with a descriptive message, `git push origin gh-pages`, then switch back to `main`.
